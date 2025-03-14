@@ -68,8 +68,15 @@ This will start the stdio-based MCP server, which can be connected to Claude Des
 
 1. In Claude Desktop, go to Settings → MCP Servers
 2. Add a new server with the full path to your uv executable:
-   ```
-   /path/to/uv run snowflake-mcp
+   ```yaml
+   "snowflake-mcp-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/<path-to-code>/mcp-server-snowflake",
+          "run",
+          "snowflake-mcp"
+        ]
    ```
 3. You can find your uv path by running `which uv` in your terminal
 4. Save the server configuration
@@ -96,23 +103,6 @@ This server:
 ⚠️ **Important**: Keep your `.env` file secure and never commit it to version control. The `.gitignore` file is configured to exclude it.
 
 ## Development
-
-### Environment Setup
-
-```
-# Create a virtual environment (optional but recommended)
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install development dependencies
-uv pip install -e ".[dev]"
-```
-
-### Running Tests
-
-```
-pytest
-```
 
 ### Static Type Checking
 
