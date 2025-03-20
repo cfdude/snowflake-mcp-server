@@ -70,13 +70,14 @@ This will start the stdio-based MCP server, which can be connected to Claude Des
 2. Add a new server with the full path to your uv executable:
    ```yaml
    "snowflake-mcp-server": {
-        "command": "uv",
-        "args": [
-          "--directory",
-          "/<path-to-code>/mcp-server-snowflake",
-          "run",
-          "snowflake-mcp"
-        ]
+      "command": "uv",
+      "args": [
+         "--directory",
+         "/<path-to-code>/mcp-server-snowflake",
+         "run",
+         "snowflake-mcp"
+      ]
+   }
    ```
 3. You can find your uv path by running `which uv` in your terminal
 4. Save the server configuration
