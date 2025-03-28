@@ -22,6 +22,8 @@ from mcp.server.stdio import stdio_server
 from mcp.server.models import InitializationOptions
 from mcp.server.lowlevel import NotificationOptions
 from dotenv import load_dotenv
+import sqlglot
+from sqlglot.errors import ParseError
 
 from mcp_server_snowflake.utils.snowflake_conn import (
     SnowflakeConfig,
@@ -346,9 +348,16 @@ async def handle_execute_query(
                 )
             ]
 
-        # Validate that the query is read-only (SELECT statement)
-        query = query.strip()
-        if not query.upper().startswith("SELECT "):
+        # Validate that the query is read-only
+        try:
+            parsed_statements = sqlglot.parse(query, dialect="snowflake")
+            read_only_types = {'select', 'show', 'describe', 'explain', 'with'}
+
+            for stmt in parsed_statements:
+                if stmt.key.lower() not in read_only_types:
+                    raise ParseError(f"Error: Only read-only queries are allowed. Found statement type: {stmt.key}")
+
+        except ParseError:
             return [
                 mcp_types.TextContent(
                     type="text",
