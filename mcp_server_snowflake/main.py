@@ -380,7 +380,9 @@ async def handle_execute_query(
         # Ensure the query has a LIMIT clause to prevent large result sets
         # Parse the query to check if it already has a LIMIT
         if "LIMIT " not in query.upper():
-            query = f"{query} LIMIT {limit_rows}"
+            # Remove any trailing semicolon before adding the LIMIT clause
+            query = query.rstrip().rstrip(';')
+            query = f"{query} LIMIT {limit_rows};"
 
         # Execute the query
         cursor = conn.cursor()
