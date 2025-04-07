@@ -5,6 +5,10 @@ to perform read-only operations against Snowflake databases. It connects to
 Snowflake using either service account authentication with a private key or
 external browser authentication. It exposes various tools for querying database
 metadata and data, including support for multi-view and multi-database queries.
+to perform read-only operations against Snowflake databases. It connects to
+Snowflake using either service account authentication with a private key or
+external browser authentication. It exposes various tools for querying database
+metadata and data, including support for multi-view and multi-database queries.
 
 The server is designed to be used with Claude Desktop as an MCP server, providing
 Claude with secure, controlled access to Snowflake data for analysis and reporting.
@@ -12,9 +16,11 @@ Claude with secure, controlled access to Snowflake data for analysis and reporti
 
 import os
 from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import anyio
 import mcp.types as mcp_types
+from dotenv import load_dotenv
 from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -25,6 +31,7 @@ import sqlglot
 from sqlglot.errors import ParseError
 
 from mcp_server_snowflake.utils.snowflake_conn import (
+    AuthType,
     AuthType,
     SnowflakeConfig,
     get_snowflake_connection,
@@ -45,8 +52,17 @@ def get_snowflake_config() -> SnowflakeConfig:
     )
 
     config = SnowflakeConfig(
+    auth_type_str = os.getenv("SNOWFLAKE_AUTH_TYPE", "private_key").lower()
+    auth_type = (
+        AuthType.PRIVATE_KEY
+        if auth_type_str == "private_key"
+        else AuthType.EXTERNAL_BROWSER
+    )
+
+    config = SnowflakeConfig(
         account=os.getenv("SNOWFLAKE_ACCOUNT", ""),
         user=os.getenv("SNOWFLAKE_USER", ""),
+        auth_type=auth_type,
         auth_type=auth_type,
         warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
         database=os.getenv("SNOWFLAKE_DATABASE"),
@@ -60,13 +76,22 @@ def get_snowflake_config() -> SnowflakeConfig:
 
     return config
 
+    # Only set private_key_path if using private key authentication
+    if auth_type == AuthType.PRIVATE_KEY:
+        config.private_key_path = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH", "")
+
+    return config
+
 
 # Define MCP server
 def create_server() -> Server:
     """Create and configure the MCP server."""
     server: Server = Server(
+    server: Server = Server(
         name="mcp-server-snowflake",
         version="0.1.0",
+        instructions="MCP server for performing read-only operations against "
+        "Snowflake.",
         instructions="MCP server for performing read-only operations against "
         "Snowflake.",
     )
@@ -76,6 +101,10 @@ def create_server() -> Server:
 
 # Snowflake query handler functions
 async def handle_list_databases(
+    name: str, arguments: Optional[Dict[str, Any]] = None
+) -> Sequence[
+    Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
+]:
     name: str, arguments: Optional[Dict[str, Any]] = None
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
@@ -103,6 +132,7 @@ async def handle_list_databases(
             mcp_types.TextContent(
                 type="text",
                 text="Available Snowflake databases:\n" + "\n".join(databases),
+                text="Available Snowflake databases:\n" + "\n".join(databases),
             )
         ]
 
@@ -115,6 +145,10 @@ async def handle_list_databases(
 
 
 async def handle_list_views(
+    name: str, arguments: Optional[Dict[str, Any]] = None
+) -> Sequence[
+    Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
+]:
     name: str, arguments: Optional[Dict[str, Any]] = None
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
@@ -145,6 +179,15 @@ async def handle_list_views(
             # Get the current schema
             cursor = conn.cursor()
             cursor.execute("SELECT CURRENT_SCHEMA()")
+            schema_result = cursor.fetchone()
+            if schema_result:
+                schema = schema_result[0]
+            else:
+                return [
+                    mcp_types.TextContent(
+                        type="text", text="Error: Could not determine current schema"
+                    )
+                ]
             schema_result = cursor.fetchone()
             if schema_result:
                 schema = schema_result[0]
@@ -194,6 +237,10 @@ async def handle_describe_view(
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
 ]:
+    name: str, arguments: Optional[Dict[str, Any]] = None
+) -> Sequence[
+    Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
+]:
     """Tool handler to describe the structure of a view."""
     try:
         # Get Snowflake connection
@@ -230,6 +277,16 @@ async def handle_describe_view(
                         type="text", text="Error: Could not determine current schema"
                     )
                 ]
+            schema_result = cursor.fetchone()
+            if schema_result:
+                schema = schema_result[0]
+                full_view_name = f"{database}.{schema}.{view_name}"
+            else:
+                return [
+                    mcp_types.TextContent(
+                        type="text", text="Error: Could not determine current schema"
+                    )
+                ]
 
         # Execute query to describe view
         cursor = conn.cursor()
@@ -245,6 +302,8 @@ async def handle_describe_view(
 
         # Get view definition
         cursor.execute(f"SELECT GET_DDL('VIEW', '{full_view_name}')")
+        view_ddl_result = cursor.fetchone()
+        view_ddl = view_ddl_result[0] if view_ddl_result else "Definition not available"
         view_ddl_result = cursor.fetchone()
         view_ddl = view_ddl_result[0] if view_ddl_result else "Definition not available"
 
@@ -281,6 +340,10 @@ async def handle_query_view(
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
 ]:
+    name: str, arguments: Optional[Dict[str, Any]] = None
+) -> Sequence[
+    Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
+]:
     """Tool handler to query data from a view with optional limit."""
     try:
         # Get Snowflake connection
@@ -292,6 +355,9 @@ async def handle_query_view(
         schema = arguments.get("schema") if arguments else None
         view_name = arguments.get("view_name") if arguments else None
         limit = (
+            int(arguments.get("limit", 10))
+            if arguments and arguments.get("limit") is not None
+            else 10
             int(arguments.get("limit", 10))
             if arguments and arguments.get("limit") is not None
             else 10
@@ -322,12 +388,25 @@ async def handle_query_view(
                         type="text", text="Error: Could not determine current schema"
                     )
                 ]
+            schema_result = cursor.fetchone()
+            if schema_result:
+                schema = schema_result[0]
+                full_view_name = f"{database}.{schema}.{view_name}"
+            else:
+                return [
+                    mcp_types.TextContent(
+                        type="text", text="Error: Could not determine current schema"
+                    )
+                ]
 
         # Execute query to get data from view
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM {full_view_name} LIMIT {limit}")
 
         # Get column names
+        column_names = (
+            [col[0] for col in cursor.description] if cursor.description else []
+        )
         column_names = (
             [col[0] for col in cursor.description] if cursor.description else []
         )
@@ -377,6 +456,10 @@ async def handle_execute_query(
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
 ]:
+    name: str, arguments: Optional[Dict[str, Any]] = None
+) -> Sequence[
+    Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
+]:
     """Tool handler to execute read-only SQL queries against Snowflake."""
     try:
         # Get Snowflake connection
@@ -388,6 +471,9 @@ async def handle_execute_query(
         database = arguments.get("database") if arguments else None
         schema = arguments.get("schema") if arguments else None
         limit_rows = (
+            int(arguments.get("limit", 100))
+            if arguments and arguments.get("limit") is not None
+            else 100
             int(arguments.get("limit", 100))
             if arguments and arguments.get("limit") is not None
             else 100
@@ -431,6 +517,11 @@ async def handle_execute_query(
             current_db, current_schema = context_result
         else:
             current_db, current_schema = "Unknown", "Unknown"
+        context_result = context_cursor.fetchone()
+        if context_result:
+            current_db, current_schema = context_result
+        else:
+            current_db, current_schema = "Unknown", "Unknown"
         context_cursor.close()
 
         # Ensure the query has a LIMIT clause to prevent large result sets
@@ -448,9 +539,13 @@ async def handle_execute_query(
         column_names = (
             [col[0] for col in cursor.description] if cursor.description else []
         )
+        column_names = (
+            [col[0] for col in cursor.description] if cursor.description else []
+        )
 
         # Fetch only up to limit_rows
         rows = cursor.fetchmany(limit_rows)
+        row_count = len(rows) if rows else 0
         row_count = len(rows) if rows else 0
 
         cursor.close()
@@ -501,11 +596,19 @@ def run_stdio_server() -> None:
     """Run the MCP server using stdin/stdout for communication."""
 
     async def run() -> None:
+    async def run() -> None:
         server = create_server()
 
         # Register all the Snowflake tools
         @server.call_tool()
         async def call_tool(
+            name: str, arguments: Optional[Dict[str, Any]] = None
+        ) -> Sequence[
+            Union[
+                mcp_types.TextContent,
+                mcp_types.ImageContent,
+                mcp_types.EmbeddedResource,
+            ]
             name: str, arguments: Optional[Dict[str, Any]] = None
         ) -> Sequence[
             Union[
