@@ -35,6 +35,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+ignore = ["E501"]  # Ignore line too long errors
 
 [tool.mypy]
 python_version = "3.12"
