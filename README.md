@@ -8,6 +8,7 @@ A Model Context Protocol (MCP) server for performing read-only operations agains
   - Service account authentication with private key
   - External browser authentication for interactive sessions
 - Support for querying multiple views and databases in a single session
+- Support for multiple SQL statement types (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH)
 - MCP-compatible handlers for querying Snowflake data
 - Read-only operations with security checks to prevent data modification
 - Support for Python 3.12+
@@ -21,7 +22,7 @@ The server provides the following tools for querying Snowflake:
 - **list_views**: List all views in a specified database and schema
 - **describe_view**: Get detailed information about a specific view including columns and SQL definition
 - **query_view**: Query data from a view with an optional row limit
-- **execute_query**: Execute custom read-only SQL queries (SELECT only) with results formatted as markdown tables
+- **execute_query**: Execute custom read-only SQL queries (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH) with results formatted as markdown tables
 
 ## Installation
 
@@ -127,7 +128,7 @@ This method opens a browser window for interactive authentication.
 ## Security Considerations
 
 This server:
-- Enforces read-only operations (only SELECT statements are allowed)
+- Enforces read-only operations (only SELECT, SHOW, DESCRIBE, EXPLAIN, and WITH statements are allowed)
 - Automatically adds LIMIT clauses to prevent large result sets
 - Uses secure authentication methods for connections to Snowflake
 - Validates inputs to prevent SQL injection
