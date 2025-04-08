@@ -13,12 +13,13 @@ The primary components are:
   auth or browser auth
 """
 
+import contextlib
 import os
 import threading
 import time
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import snowflake.connector
 from cryptography.hazmat.backends import default_backend
@@ -215,6 +216,22 @@ class SnowflakeConnectionManager:
             self._last_error = e
             raise
 
+    @contextlib.contextmanager
+    def _temporarily_release_lock(self) -> Iterator[None]:
+        """Context manager to safely release and reacquire the connection lock.
+
+        This allows other threads to access the connection while this thread sleeps,
+        without risking inconsistent lock states.
+
+        Yields:
+            None: This context manager doesn't yield any value.
+        """
+        self._connection_lock.release()
+        try:
+            yield
+        finally:
+            self._connection_lock.acquire()
+
     def _refresh_connection_periodically(self) -> None:
         """Background thread that refreshes the connection periodically."""
         while not self._stop_event.is_set():
@@ -245,12 +262,9 @@ class SnowflakeConnectionManager:
                                 )
                             ]
 
-                            # Release the lock during the sleep to avoid blocking other operations
-                            self._connection_lock.release()
-                            try:
+                            # Safely release the lock during sleep without risk of inconsistent lock state
+                            with self._temporarily_release_lock():
                                 time.sleep(retry_delay)
-                            finally:
-                                self._connection_lock.acquire()
 
                             # Try again immediately after the backoff
                             continue
