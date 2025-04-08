@@ -25,7 +25,6 @@ from mcp_server_snowflake.utils.snowflake_conn import (
     AuthType,
     SnowflakeConfig,
     connection_manager,
-    get_snowflake_connection,
 )
 
 # Load environment variables from .env file
@@ -64,8 +63,6 @@ def init_connection_manager() -> None:
     """Initialize the connection manager with Snowflake config."""
     config = get_snowflake_config()
     connection_manager.initialize(config)
-    print(f"Initialized Snowflake connection manager (auth type: {config.auth_type})")
-    print(f"Connection refresh interval: {connection_manager._refresh_interval}")
 
 
 # Define MCP server
@@ -76,7 +73,7 @@ def create_server() -> Server:
 
     server: Server = Server(
         name="mcp-server-snowflake",
-        version="0.1.0",
+        version="0.2.0",
         instructions="MCP server for performing read-only operations against "
         "Snowflake.",
     )

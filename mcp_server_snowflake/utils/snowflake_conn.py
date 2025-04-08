@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import snowflake.connector
 from cryptography.hazmat.backends import default_backend
@@ -26,6 +26,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from pydantic import BaseModel, ValidationInfo, field_validator
 from snowflake.connector import SnowflakeConnection
+from snowflake.connector.errors import DatabaseError, OperationalError
 
 
 class AuthType(str, Enum):
@@ -86,14 +87,29 @@ class SnowflakeConnectionManager:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls):
+    # Class instance variable type annotations
+    _initialized: bool
+    _connection: Optional[SnowflakeConnection]
+    _connection_lock: threading.Lock
+    _config: Optional[SnowflakeConfig]
+    _last_refresh_time: Optional[datetime]
+    _refresh_thread: Optional[threading.Thread]
+    _stop_event: threading.Event
+    _refresh_interval: timedelta
+    _connection_healthy: bool
+    _last_error: Optional[Exception]
+    _retry_count: int
+    _max_retry_count: int
+    _retry_backoff_seconds: List[int]
+
+    def __new__(cls) -> "SnowflakeConnectionManager":
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(SnowflakeConnectionManager, cls).__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the connection manager if not already initialized."""
         if self._initialized:
             return
@@ -104,6 +120,12 @@ class SnowflakeConnectionManager:
         self._last_refresh_time = None
         self._refresh_thread = None
         self._stop_event = threading.Event()
+        self._connection_healthy = False
+        self._last_error = None
+        self._retry_count = 0
+        self._max_retry_count = 3
+        # Exponential backoff retry intervals in seconds: 10s, 30s, 60s
+        self._retry_backoff_seconds = [10, 30, 60]
 
         # Get refresh interval from environment variable (in hours, default 8)
         refresh_interval_hours = float(os.getenv("SNOWFLAKE_CONN_REFRESH_HOURS", "8"))
@@ -121,19 +143,42 @@ class SnowflakeConnectionManager:
             if self._refresh_thread is None or not self._refresh_thread.is_alive():
                 self._stop_event.clear()
                 self._refresh_thread = threading.Thread(
-                    target=self._refresh_connection_periodically,
-                    daemon=True
+                    target=self._refresh_connection_periodically, daemon=True
                 )
                 self._refresh_thread.start()
 
     def get_connection(self) -> SnowflakeConnection:
         """Get the current Snowflake connection, creating it if necessary."""
         with self._connection_lock:
-            if self._connection is None:
+            if self._connection is None or not self._connection_healthy:
                 if self._config is None:
-                    raise ValueError("Connection manager not initialized with a configuration")
+                    raise ValueError(
+                        "Connection manager not initialized with a configuration"
+                    )
                 self._connect()
+
+            # At this point, self._connection should never be None because
+            # _connect() would have either set it or raised an exception
+            assert (
+                self._connection is not None
+            ), "Connection is None after connect attempt"
             return self._connection
+
+    def is_healthy(self) -> Tuple[bool, Optional[str]]:
+        """Check if the connection is healthy.
+
+        Returns:
+            Tuple[bool, Optional[str]]: A tuple containing:
+                - Boolean indicating if the connection is healthy
+                - Optional error message if not healthy, None otherwise
+        """
+        with self._connection_lock:
+            error_msg = None
+            if self._last_error:
+                error_msg = (
+                    f"{type(self._last_error).__name__}: {str(self._last_error)}"
+                )
+            return (self._connection_healthy, error_msg)
 
     def close(self) -> None:
         """Close the current connection and stop the refresh thread."""
@@ -146,6 +191,7 @@ class SnowflakeConnectionManager:
                 except Exception:
                     pass  # Ignore errors during close
                 self._connection = None
+                self._connection_healthy = False
 
     def _connect(self) -> None:
         """Establish a new connection to Snowflake."""
@@ -155,8 +201,19 @@ class SnowflakeConnectionManager:
             except Exception:
                 pass  # Ignore errors during close
 
-        self._connection = get_snowflake_connection(self._config)
-        self._last_refresh_time = datetime.now()
+        if self._config is None:
+            raise ValueError("Connection configuration is not initialized")
+
+        try:
+            self._connection = get_snowflake_connection(self._config)
+            self._last_refresh_time = datetime.now()
+            self._connection_healthy = True
+            self._last_error = None
+            self._retry_count = 0
+        except Exception as e:
+            self._connection_healthy = False
+            self._last_error = e
+            raise
 
     def _refresh_connection_periodically(self) -> None:
         """Background thread that refreshes the connection periodically."""
@@ -168,13 +225,39 @@ class SnowflakeConnectionManager:
             with self._connection_lock:
                 if (
                     self._last_refresh_time is not None
-                    and datetime.now() - self._last_refresh_time >= self._refresh_interval
+                    and datetime.now() - self._last_refresh_time
+                    >= self._refresh_interval
                 ):
                     try:
-                        print(f"Refreshing Snowflake connection (interval: {self._refresh_interval})")
                         self._connect()
+                    except (OperationalError, DatabaseError) as e:
+                        # Potentially recoverable errors
+                        self._connection_healthy = False
+                        self._last_error = e
+                        self._retry_count += 1
+
+                        if self._retry_count <= self._max_retry_count:
+                            # Schedule a retry
+                            retry_delay = self._retry_backoff_seconds[
+                                min(
+                                    self._retry_count - 1,
+                                    len(self._retry_backoff_seconds) - 1,
+                                )
+                            ]
+
+                            # Release the lock during the sleep to avoid blocking other operations
+                            self._connection_lock.release()
+                            try:
+                                time.sleep(retry_delay)
+                            finally:
+                                self._connection_lock.acquire()
+
+                            # Try again immediately after the backoff
+                            continue
                     except Exception as e:
-                        print(f"Error refreshing Snowflake connection: {e}")
+                        # All other errors
+                        self._connection_healthy = False
+                        self._last_error = e
 
 
 def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
@@ -205,7 +288,9 @@ def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
     if config.role:
         conn_params["role"] = config.role
 
-    return snowflake.connector.connect(**conn_params)
+    # Explicitly cast the return value to SnowflakeConnection to satisfy mypy
+    connection: SnowflakeConnection = snowflake.connector.connect(**conn_params)
+    return connection
 
 
 # Create a singleton instance for convenience
