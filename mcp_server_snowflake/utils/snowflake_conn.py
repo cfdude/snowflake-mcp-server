@@ -86,8 +86,12 @@ def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
             )
         private_key = load_private_key(config.private_key_path)
         conn_params["private_key"] = private_key
+        print(f"Using private key authentication for user {config.user}")
     elif config.auth_type == AuthType.EXTERNAL_BROWSER:
         conn_params["authenticator"] = "externalbrowser"
+        print(f"Using external browser authentication for user {config.user}")
+        # Add debug mode for troubleshooting
+        conn_params["debug"] = True
 
     # Add optional connection parameters
     if config.warehouse:
@@ -99,4 +103,15 @@ def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
     if config.role:
         conn_params["role"] = config.role
 
-    return snowflake.connector.connect(**conn_params)
+    try:
+        connection = snowflake.connector.connect(**conn_params)
+        print(f"Successfully connected to Snowflake account: {config.account}")
+        return connection
+    except Exception as e:
+        if config.auth_type == AuthType.EXTERNAL_BROWSER:
+            print(f"External browser authentication error: {str(e)}")
+            print("Make sure:")
+            print("1. You have a browser installed and accessible")
+            print("2. Your Snowflake account supports external browser authentication")
+            print("3. The snowflake-connector-python package is up to date")
+        raise
