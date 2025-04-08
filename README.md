@@ -7,6 +7,7 @@ A Model Context Protocol (MCP) server for performing read-only operations agains
 - Flexible authentication to Snowflake using either:
   - Service account authentication with private key
   - External browser authentication for interactive sessions
+- Connection pooling with automatic background refresh to maintain persistent connections
 - Support for querying multiple views and databases in a single session
 - Support for multiple SQL statement types (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH)
 - MCP-compatible handlers for querying Snowflake data
@@ -106,6 +107,18 @@ When using with Claude, you can ask questions like:
 - "Run this SQL query: SELECT customer_id, SUM(order_total) as total_spend FROM SALES.ORDERS GROUP BY customer_id ORDER BY total_spend DESC LIMIT 10"
 - "Query the MARKETING database to find the top 5 performing campaigns by conversion rate"
 - "Compare data from views in different databases by querying SALES.CUSTOMER_METRICS and MARKETING.CAMPAIGN_RESULTS"
+
+### Configuration
+
+Connection pooling behavior can be configured through environment variables:
+
+- `SNOWFLAKE_CONN_REFRESH_HOURS`: Time interval in hours between connection refreshes (default: 8)
+
+Example `.env` configuration:
+```
+# Set connection to refresh every 4 hours
+SNOWFLAKE_CONN_REFRESH_HOURS=4
+```
 
 ## Authentication Methods
 

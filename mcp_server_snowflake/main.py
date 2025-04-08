@@ -24,6 +24,7 @@ from sqlglot.errors import ParseError
 from mcp_server_snowflake.utils.snowflake_conn import (
     AuthType,
     SnowflakeConfig,
+    connection_manager,
     get_snowflake_connection,
 )
 
@@ -58,9 +59,21 @@ def get_snowflake_config() -> SnowflakeConfig:
     return config
 
 
+# Initialize the connection manager at startup
+def init_connection_manager() -> None:
+    """Initialize the connection manager with Snowflake config."""
+    config = get_snowflake_config()
+    connection_manager.initialize(config)
+    print(f"Initialized Snowflake connection manager (auth type: {config.auth_type})")
+    print(f"Connection refresh interval: {connection_manager._refresh_interval}")
+
+
 # Define MCP server
 def create_server() -> Server:
     """Create and configure the MCP server."""
+    # Initialize the connection manager before setting up the server
+    init_connection_manager()
+
     server: Server = Server(
         name="mcp-server-snowflake",
         version="0.1.0",
@@ -79,9 +92,8 @@ async def handle_list_databases(
 ]:
     """Tool handler to list all accessible Snowflake databases."""
     try:
-        # Get Snowflake connection
-        config = get_snowflake_config()
-        conn = get_snowflake_connection(config)
+        # Get Snowflake connection from connection manager
+        conn = connection_manager.get_connection()
 
         # Execute query
         cursor = conn.cursor()
@@ -93,7 +105,7 @@ async def handle_list_databases(
             databases.append(row[1])  # Database name is in the second column
 
         cursor.close()
-        conn.close()
+        # Don't close the connection, just the cursor
 
         # Return formatted content
         return [
@@ -118,9 +130,8 @@ async def handle_list_views(
 ]:
     """Tool handler to list views in a specified database and schema."""
     try:
-        # Get Snowflake connection
-        config = get_snowflake_config()
-        conn = get_snowflake_connection(config)
+        # Get Snowflake connection from connection manager
+        conn = connection_manager.get_connection()
 
         # Extract arguments
         database = arguments.get("database") if arguments else None
@@ -164,7 +175,7 @@ async def handle_list_views(
             views.append(f"{view_name} (created: {created_on})")
 
         cursor.close()
-        conn.close()
+        # Don't close the connection, just the cursor
 
         if views:
             return [
@@ -193,9 +204,8 @@ async def handle_describe_view(
 ]:
     """Tool handler to describe the structure of a view."""
     try:
-        # Get Snowflake connection
-        config = get_snowflake_config()
-        conn = get_snowflake_connection(config)
+        # Get Snowflake connection from connection manager
+        conn = connection_manager.get_connection()
 
         # Extract arguments
         database = arguments.get("database") if arguments else None
@@ -246,7 +256,7 @@ async def handle_describe_view(
         view_ddl = view_ddl_result[0] if view_ddl_result else "Definition not available"
 
         cursor.close()
-        conn.close()
+        # Don't close the connection, just the cursor
 
         if columns:
             result = f"## View: {full_view_name}\n\n"
@@ -280,9 +290,8 @@ async def handle_query_view(
 ]:
     """Tool handler to query data from a view with optional limit."""
     try:
-        # Get Snowflake connection
-        config = get_snowflake_config()
-        conn = get_snowflake_connection(config)
+        # Get Snowflake connection from connection manager
+        conn = connection_manager.get_connection()
 
         # Extract arguments
         database = arguments.get("database") if arguments else None
@@ -333,7 +342,7 @@ async def handle_query_view(
         rows = cursor.fetchall()
 
         cursor.close()
-        conn.close()
+        # Don't close the connection, just the cursor
 
         if rows:
             # Format the results as a markdown table
@@ -376,9 +385,8 @@ async def handle_execute_query(
 ]:
     """Tool handler to execute read-only SQL queries against Snowflake."""
     try:
-        # Get Snowflake connection
-        config = get_snowflake_config()
-        conn = get_snowflake_connection(config)
+        # Get Snowflake connection from connection manager
+        conn = connection_manager.get_connection()
 
         # Extract arguments
         query = arguments.get("query") if arguments else None
@@ -461,7 +469,7 @@ async def handle_execute_query(
         row_count = len(rows) if rows else 0
 
         cursor.close()
-        conn.close()
+        # Don't close the connection, just the cursor
 
         if rows:
             # Format the results as a markdown table
