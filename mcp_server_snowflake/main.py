@@ -72,7 +72,7 @@ def create_server() -> Server:
     init_connection_manager()
 
     server: Server = Server(
-        name="mcp-server-snowflake",
+        name="snowflake-mcp-server",
         version="0.2.0",
         instructions="MCP server for performing read-only operations against "
         "Snowflake.",
