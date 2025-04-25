@@ -39,8 +39,8 @@ The server provides the following tools for querying Snowflake:
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/mcp-server-snowflake.git
-   cd mcp-server-snowflake
+   git clone https://github.com/yourusername/snowflake-mcp-server.git
+   cd snowflake-mcp-server
    ```
 
 2. Install the package:
@@ -72,6 +72,9 @@ After installing the package, you can run the server directly with:
 
 ```
 uv run snowflake-mcp
+
+# Or you can be explicit about using stdio transport
+uv run snowflake-mcp-stdio
 ```
 
 This will start the stdio-based MCP server, which can be connected to Claude Desktop or any MCP client that supports stdio communication.
@@ -87,9 +90,23 @@ When using external browser authentication, a browser window will automatically 
       "command": "uv",
       "args": [
          "--directory",
-         "/<path-to-code>/mcp-server-snowflake",
+         "/<path-to-code>/snowflake-mcp-server",
          "run",
          "snowflake-mcp"
+      ]
+   }
+   ```
+   
+   Or explicitly specify the stdio transport:
+   
+   ```yaml
+   "snowflake-mcp-server": {
+      "command": "uv",
+      "args": [
+         "--directory",
+         "/<path-to-code>/snowflake-mcp-server",
+         "run",
+         "snowflake-mcp-stdio"
       ]
    }
    ```

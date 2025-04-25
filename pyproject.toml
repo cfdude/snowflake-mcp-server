@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-server-snowflake"
+name = "snowflake-mcp-server"
 version = "0.2.0"
 description = "MCP server for performing read-only operations against Snowflake"
 readme = "README.md"
@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 snowflake-mcp = "mcp_server_snowflake.main:run_stdio_server"
+snowflake-mcp-stdio = "mcp_server_snowflake.main:run_stdio_server"
 
 [project.optional-dependencies]
 dev = [
