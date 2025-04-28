@@ -260,42 +260,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-server-snowflake"
-version = "0.2.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anyio" },
-    { name = "cryptography" },
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "snowflake-connector-python" },
-    { name = "sqlglot" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anyio", specifier = ">=3.7.1" },
-    { name = "cryptography", specifier = ">=41.0.0" },
-    { name = "mcp" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.6.0" },
-    { name = "pydantic", specifier = ">=2.4.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "snowflake-connector-python", specifier = ">=3.8.0" },
-    { name = "sqlglot", specifier = ">=11.5.5" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "mypy"
 version = "1.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -565,6 +529,42 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/83/8b/08d1862a3893882324872a3b50277f18f2c89c6726ce5c7393a96f274dd8/snowflake_connector_python-3.14.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:74eeedaf3c9275f6d56336ac3d1d19522ae69db11c88a6a4866ec66e51fd3ed1", size = 2563526 },
     { url = "https://files.pythonhosted.org/packages/b3/a2/3f59e5bb994de797b980d39ea0c4ce30f95efcd11ca3f3b9d72115c2c3e5/snowflake_connector_python-3.14.0-cp312-cp312-win_amd64.whl", hash = "sha256:1224d2b33ce6f42d99bb01aaf4ad585a72cf9de53334dd849fecfaca22880560", size = 922618 },
 ]
+
+[[package]]
+name = "snowflake-mcp-server"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anyio" },
+    { name = "cryptography" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "snowflake-connector-python" },
+    { name = "sqlglot" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", specifier = ">=3.7.1" },
+    { name = "cryptography", specifier = ">=41.0.0" },
+    { name = "mcp" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.6.0" },
+    { name = "pydantic", specifier = ">=2.4.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+    { name = "snowflake-connector-python", specifier = ">=3.8.0" },
+    { name = "sqlglot", specifier = ">=11.5.5" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "sortedcontainers"
