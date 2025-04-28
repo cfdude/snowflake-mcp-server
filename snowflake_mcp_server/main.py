@@ -21,7 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from sqlglot.errors import ParseError
 
-from mcp_server_snowflake.utils.snowflake_conn import (
+from snowflake_mcp_server.utils.snowflake_conn import (
     AuthType,
     SnowflakeConfig,
     connection_manager,

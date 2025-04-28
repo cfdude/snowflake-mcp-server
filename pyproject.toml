@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.scripts]
-snowflake-mcp = "mcp_server_snowflake.main:run_stdio_server"
-snowflake-mcp-stdio = "mcp_server_snowflake.main:run_stdio_server"
+snowflake-mcp = "snowflake_mcp_server.main:run_stdio_server"
+snowflake-mcp-stdio = "snowflake_mcp_server.main:run_stdio_server"
 
 [project.optional-dependencies]
 dev = [
