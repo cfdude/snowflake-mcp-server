@@ -93,8 +93,9 @@ dmypy.json
 # Ruff
 .ruff_cache/
 
-# Claude Code IDE
+# Claude Code IDE & MCP Tools
 .claude/
+.serena/
 CLAUDE.md
 
 # Credentials and secrets
