@@ -135,11 +135,29 @@ class SecurityConfig(BaseModel):
     enable_sql_protection: bool = Field(True, description="Enable SQL injection protection")
     enable_rate_limiting: bool = Field(False, description="Enable request rate limiting")
     rate_limit_per_minute: int = Field(60, description="Rate limit per minute per client")
+    allowed_sql_commands: List[str] = Field(
+        ["select", "show", "describe", "explain", "with", "union"], 
+        description="SQL command types allowed for execution"
+    )
     
     @validator('api_keys', pre=True)
     def parse_api_keys(cls, v):
         if isinstance(v, str):
             return [key.strip() for key in v.split(',') if key.strip()]
+        return v
+    
+    @validator('allowed_sql_commands', pre=True)
+    def parse_allowed_sql_commands(cls, v):
+        if isinstance(v, str):
+            # Parse comma-separated string and normalize to lowercase
+            commands = [cmd.strip().lower() for cmd in v.split(',') if cmd.strip()]
+            if not commands:
+                # Fallback to secure defaults if empty
+                return ["select", "show", "describe", "explain", "with", "union"]
+            return commands
+        elif isinstance(v, list):
+            # Normalize list items to lowercase
+            return [cmd.lower().strip() for cmd in v if cmd and cmd.strip()]
         return v
 
 
@@ -252,6 +270,7 @@ def load_config() -> ServerConfig:
                 enable_sql_protection=get_env("ENABLE_SQL_PROTECTION", True, bool),
                 enable_rate_limiting=get_env("ENABLE_RATE_LIMITING", False, bool),
                 rate_limit_per_minute=get_env("RATE_LIMIT_PER_MINUTE", 60, int),
+                allowed_sql_commands=get_env("ALLOWED_SQL_COMMANDS", "select,show,describe,explain,with,union"),
             ),
             
             monitoring=MonitoringConfig(

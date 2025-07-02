@@ -25,6 +25,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from sqlglot.errors import ParseError
 
+from snowflake_mcp_server.config import get_config
 from snowflake_mcp_server.utils.async_database import (
     get_isolated_database_ops,
     get_transactional_database_ops,
@@ -467,10 +468,13 @@ async def handle_execute_query(
                 )
             ]
 
-        # Validate that the query is read-only
+        # Validate that the query uses allowed SQL commands
         try:
+            # Get allowed SQL commands from configuration
+            config = get_config()
+            allowed_types = set(config.security.allowed_sql_commands)
+            
             parsed_statements = sqlglot.parse(query, dialect="snowflake")
-            read_only_types = {"select", "show", "describe", "explain", "with"}
 
             if not parsed_statements:
                 raise ParseError("Error: Could not parse SQL query")
@@ -480,17 +484,23 @@ async def handle_execute_query(
                     stmt is not None
                     and hasattr(stmt, "key")
                     and stmt.key
-                    and stmt.key.lower() not in read_only_types
+                    and stmt.key.lower() not in allowed_types
                 ):
+                    allowed_commands_str = ", ".join(sorted(allowed_types))
                     raise ParseError(
-                        f"Error: Only read-only queries are allowed. Found statement type: {stmt.key}"
+                        f"Error: Only these SQL commands are allowed: {allowed_commands_str}. Found statement type: {stmt.key}"
                     )
 
         except ParseError as e:
+            # Get allowed commands for error message
+            config = get_config()
+            allowed_commands_upper = [cmd.upper() for cmd in config.security.allowed_sql_commands]
+            allowed_commands_str = "/".join(sorted(allowed_commands_upper))
+            
             return [
                 mcp_types.TextContent(
                     type="text",
-                    text=f"Error: Only SELECT/SHOW/DESCRIBE/EXPLAIN/WITH queries are allowed for security reasons. {str(e)}",
+                    text=f"Error: Only {allowed_commands_str} queries are allowed. {str(e)}",
                 )
             ]
 
@@ -690,13 +700,13 @@ def run_stdio_server() -> None:
                 ),
                 mcp_types.Tool(
                     name="execute_query",
-                    description="Execute a read-only SQL query against Snowflake with optional transaction control",
+                    description="Execute a SQL query against Snowflake with optional transaction control",
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "The SQL query to execute (supports SELECT, SHOW, DESCRIBE, EXPLAIN, and WITH statements)",
+                                "description": "The SQL query to execute (allowed commands are configurable via ALLOWED_SQL_COMMANDS environment variable)",
                             },
                             "database": {
                                 "type": "string",
@@ -793,9 +803,9 @@ async def get_available_tools() -> List[Dict[str, Any]]:
         },
         {
             "name": "execute_query",
-            "description": "Execute a read-only SQL query against Snowflake with optional transaction control",
+            "description": "Execute a SQL query against Snowflake with optional transaction control",
             "parameters": {
-                "query": {"type": "string", "required": True},
+                "query": {"type": "string", "required": True, "description": "SQL query (allowed commands configurable via ALLOWED_SQL_COMMANDS)"},
                 "database": {"type": "string", "required": False},
                 "schema": {"type": "string", "required": False},
                 "limit": {"type": "integer", "required": False},
