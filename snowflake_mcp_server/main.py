@@ -487,13 +487,16 @@ async def handle_execute_query(
                 ):
                     stmt_key = stmt.key.lower()
                     
-                    # Special handling for CALL commands - sqlglot parses them as "command" type
-                    # but we want to check if it's a CALL command specifically
+                    # Special handling for commands that sqlglot parses as "command" type
+                    # but should be treated as their actual command types
                     if stmt_key == "command" and hasattr(stmt, "this") and stmt.this:
-                        # Check if the command text starts with CALL
                         command_text = str(stmt.this).strip().upper()
                         if command_text.startswith("CALL"):
                             stmt_key = "call"
+                        elif command_text.startswith("SHOW"):
+                            # SHOW GRANTS and similar commands get parsed as "command" type
+                            # but should be treated as "show" commands
+                            stmt_key = "show"
                     
                     if stmt_key not in allowed_types:
                         allowed_commands_str = ", ".join(sorted(allowed_types))
