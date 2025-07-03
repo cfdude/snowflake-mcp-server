@@ -38,13 +38,20 @@ def setup_contextual_logging() -> logging.Logger:
         root_logger.removeHandler(handler)
     
     # Create console handler with context formatter
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Use stderr for MCP stdio mode to avoid contaminating JSON-RPC stream
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(RequestContextFormatter())
     console_handler.addFilter(RequestContextFilter())
     
     # Add handler to root logger
     root_logger.addHandler(console_handler)
     root_logger.setLevel(logging.INFO)
+    
+    # Silence third-party loggers that can contaminate stdout
+    # This is critical for MCP stdio mode where stdout is used for JSON-RPC
+    logging.getLogger("snowflake.connector").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
     
     # Create request-specific logger
     request_logger = logging.getLogger("snowflake_mcp.requests")
