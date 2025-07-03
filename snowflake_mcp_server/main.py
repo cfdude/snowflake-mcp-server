@@ -484,12 +484,22 @@ async def handle_execute_query(
                     stmt is not None
                     and hasattr(stmt, "key")
                     and stmt.key
-                    and stmt.key.lower() not in allowed_types
                 ):
-                    allowed_commands_str = ", ".join(sorted(allowed_types))
-                    raise ParseError(
-                        f"Error: Only these SQL commands are allowed: {allowed_commands_str}. Found statement type: {stmt.key}"
-                    )
+                    stmt_key = stmt.key.lower()
+                    
+                    # Special handling for CALL commands - sqlglot parses them as "command" type
+                    # but we want to check if it's a CALL command specifically
+                    if stmt_key == "command" and hasattr(stmt, "this") and stmt.this:
+                        # Check if the command text starts with CALL
+                        command_text = str(stmt.this).strip().upper()
+                        if command_text.startswith("CALL"):
+                            stmt_key = "call"
+                    
+                    if stmt_key not in allowed_types:
+                        allowed_commands_str = ", ".join(sorted(allowed_types))
+                        raise ParseError(
+                            f"Error: Only these SQL commands are allowed: {allowed_commands_str}. Found statement type: {stmt.key}"
+                        )
 
         except ParseError as e:
             # Get allowed commands for error message
@@ -516,8 +526,8 @@ async def handle_execute_query(
                 # Get current context for display
                 current_db, current_schema = await db_ops.get_current_context()
 
-                # Add LIMIT clause if not present
-                if "LIMIT " not in query.upper():
+                # Add LIMIT clause if not present (but not for CALL commands)
+                if "LIMIT " not in query.upper() and not query.strip().upper().startswith("CALL"):
                     query = query.rstrip().rstrip(";")
                     query = f"{query} LIMIT {limit_rows};"
 
@@ -534,8 +544,8 @@ async def handle_execute_query(
                 # Get current context for display
                 current_db, current_schema = await db_ops.get_current_context()
 
-                # Add LIMIT clause if not present
-                if "LIMIT " not in query.upper():
+                # Add LIMIT clause if not present (but not for CALL commands)
+                if "LIMIT " not in query.upper() and not query.strip().upper().startswith("CALL"):
                     query = query.rstrip().rstrip(";")
                     query = f"{query} LIMIT {limit_rows};"
 
