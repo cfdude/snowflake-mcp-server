@@ -139,6 +139,7 @@ class SecurityConfig(BaseModel):
         ["select", "show", "describe", "explain", "with", "union"], 
         description="SQL command types allowed for execution"
     )
+    readonly_mode: bool = Field(True, description="Enable read-only mode (blocks INSERT, UPDATE, CREATE, etc.)")
     
     @validator('api_keys', pre=True)
     def parse_api_keys(cls, v):
@@ -271,6 +272,7 @@ def load_config() -> ServerConfig:
                 enable_rate_limiting=get_env("ENABLE_RATE_LIMITING", False, bool),
                 rate_limit_per_minute=get_env("RATE_LIMIT_PER_MINUTE", 60, int),
                 allowed_sql_commands=get_env("ALLOWED_SQL_COMMANDS", "select,show,describe,explain,with,union"),
+                readonly_mode=get_env("READONLY_MODE", True, bool),
             ),
             
             monitoring=MonitoringConfig(
