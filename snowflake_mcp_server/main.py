@@ -497,6 +497,10 @@ async def handle_execute_query(
                             # SHOW GRANTS and similar commands get parsed as "command" type
                             # but should be treated as "show" commands
                             stmt_key = "show"
+                        elif command_text.startswith("DESCRIBE") or command_text.startswith("DESC"):
+                            # DESCRIBE TABLE and DESC TABLE commands get parsed as "command" type
+                            # but should be treated as "describe" commands
+                            stmt_key = "describe"
                     
                     if stmt_key not in allowed_types:
                         allowed_commands_str = ", ".join(sorted(allowed_types))
@@ -529,8 +533,9 @@ async def handle_execute_query(
                 # Get current context for display
                 current_db, current_schema = await db_ops.get_current_context()
 
-                # Add LIMIT clause if not present (but not for CALL commands)
-                if "LIMIT " not in query.upper() and not query.strip().upper().startswith("CALL"):
+                # Add LIMIT clause only for SELECT queries that don't already have a LIMIT
+                query_upper = query.strip().upper()
+                if (query_upper.startswith("SELECT") or query_upper.startswith("WITH")) and "LIMIT " not in query_upper:
                     query = query.rstrip().rstrip(";")
                     query = f"{query} LIMIT {limit_rows};"
 
@@ -547,8 +552,9 @@ async def handle_execute_query(
                 # Get current context for display
                 current_db, current_schema = await db_ops.get_current_context()
 
-                # Add LIMIT clause if not present (but not for CALL commands)
-                if "LIMIT " not in query.upper() and not query.strip().upper().startswith("CALL"):
+                # Add LIMIT clause only for SELECT queries that don't already have a LIMIT
+                query_upper = query.strip().upper()
+                if (query_upper.startswith("SELECT") or query_upper.startswith("WITH")) and "LIMIT " not in query_upper:
                     query = query.rstrip().rstrip(";")
                     query = f"{query} LIMIT {limit_rows};"
 
