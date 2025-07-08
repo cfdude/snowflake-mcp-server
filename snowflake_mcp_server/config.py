@@ -136,7 +136,7 @@ class SecurityConfig(BaseModel):
     enable_rate_limiting: bool = Field(False, description="Enable request rate limiting")
     rate_limit_per_minute: int = Field(60, description="Rate limit per minute per client")
     allowed_sql_commands: List[str] = Field(
-        ["select", "show", "describe", "explain", "with", "union"], 
+        ["select", "show", "describe", "explain", "with", "union", "use"], 
         description="SQL command types allowed for execution"
     )
     readonly_mode: bool = Field(True, description="Enable read-only mode (blocks INSERT, UPDATE, CREATE, etc.)")
