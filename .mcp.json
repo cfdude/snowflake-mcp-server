@@ -1,0 +1,64 @@
+{
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena-mcp-server"
+      ]
+    },
+    "Context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    },
+    "snowflake-mcp-server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/robsherman/Servers/snowflake-mcp-server",
+        "run",
+        "--quiet",
+        "snowflake-mcp"
+      ],
+      "env": {
+        "ALLOWED_SQL_COMMANDS": "select,show,describe,explain,with,union,call,create,insert,update,use",
+        "ENABLE_SQL_PROTECTION": "true",
+        "READONLY_MODE": "false",
+        "MCP_MIN_RESPONSE_INTERVAL_MS": "50",
+        "MCP_ADAPTIVE_PACING": "true",
+        "MCP_MAX_RESPONSE_INTERVAL_MS": "200",
+        "SNOWFLAKE_MCP_LOG_LEVEL": "INFO"
+      }
+    },
+    "mcp-perplexity": {
+      "command": "uvx",
+      "args": [
+        "mcp-perplexity"
+      ],
+      "env": {
+        "PERPLEXITY_API_KEY": "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",
+        "PERPLEXITY_MODEL": "sonar-reasoning-pro",
+        "PERPLEXITY_MODEL_ASK": "sonar-reasoning-pro",
+        "PERPLEXITY_MODEL_CHAT": "sonar-reasoning-pro",
+        "DB_PATH": "/Users/robsherman/.config/mcp-perplexity/perplexity_roocode_chat.db"
+      }
+    }
+  }
+}

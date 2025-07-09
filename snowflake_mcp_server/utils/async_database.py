@@ -12,6 +12,8 @@ from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.errors import DatabaseError, OperationalError
 
+from .cursor_management import get_managed_cursor
+
 if TYPE_CHECKING:
     from .request_context import RequestContext
 
@@ -54,37 +56,20 @@ def run_in_executor(func: Callable) -> Callable:
 
 
 class AsyncCursorManager:
-    """Manage cursor lifecycle asynchronously."""
+    """Manage cursor lifecycle asynchronously with enhanced tracking."""
     
     def __init__(self, connection: SnowflakeConnection):
         self.connection = connection
+        self.connection_id = f"conn_{id(connection)}"
         self._active_cursors: Set[SnowflakeCursor] = set()
         self._cursor_lock = asyncio.Lock()
     
     @asynccontextmanager
     async def cursor(self) -> Any:
-        """Async context manager for cursor lifecycle."""
-        cursor = None
-        try:
-            # Create cursor in executor
-            loop = asyncio.get_event_loop()
-            cursor = await loop.run_in_executor(None, self.connection.cursor)
-            
-            async with self._cursor_lock:
-                self._active_cursors.add(cursor)
-            
-            yield cursor
-            
-        finally:
-            if cursor:
-                # Close cursor in executor
-                async with self._cursor_lock:
-                    self._active_cursors.discard(cursor)
-                
-                try:
-                    await loop.run_in_executor(None, cursor.close)
-                except Exception as e:
-                    logger.warning(f"Error closing cursor: {e}")
+        """Async context manager for cursor lifecycle with managed cursor tracking."""
+        # Use the new managed cursor for better tracking
+        async with get_managed_cursor(self.connection, self.connection_id) as managed_cursor:
+            yield managed_cursor
     
     async def close_all_cursors(self) -> None:
         """Close all active cursors."""
@@ -114,13 +99,11 @@ class AsyncDatabaseOperations:
             async with self.cursor_manager.cursor() as cursor:
                 loop = asyncio.get_event_loop()
                 
-                def _execute() -> Tuple[List[Any], List[str]]:
-                    cursor.execute(query)
-                    results = list(cursor.fetchall())
-                    column_names = [desc[0] for desc in cursor.description or []]
-                    return results, column_names
-                
-                return await loop.run_in_executor(None, _execute)
+                # Use managed cursor methods
+                await cursor.execute(query)
+                results = await cursor.fetchall()
+                column_names = [desc[0] for desc in cursor.cursor.description or []]
+                return list(results), column_names
         except Exception as e:
             logger.error(f"Query execution failed: {query[:100]}... Error: {e}")
             raise
@@ -131,12 +114,10 @@ class AsyncDatabaseOperations:
             async with self.cursor_manager.cursor() as cursor:
                 loop = asyncio.get_event_loop()
                 
-                def _execute() -> Optional[Any]:
-                    cursor.execute(query)
-                    result = cursor.fetchone()
-                    return result
-                
-                return await loop.run_in_executor(None, _execute)
+                # Use managed cursor methods
+                await cursor.execute(query)
+                result = await cursor.fetchone()
+                return result
         except Exception as e:
             logger.error(f"Query execution failed: {query[:100]}... Error: {e}")
             raise
