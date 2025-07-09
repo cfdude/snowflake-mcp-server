@@ -97,6 +97,7 @@ dmypy.json
 .claude/
 .serena/
 CLAUDE.md
+.mcp.json
 
 # Credentials and secrets
 .credentials/
