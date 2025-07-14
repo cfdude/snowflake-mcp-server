@@ -106,6 +106,43 @@ credentials/
 .secret/
 secrets/
 *.secret
+*_secret*
+*_token*
+*_api_key*
+*_apikey*
+*.token
+*.apikey
+api_keys.txt
+tokens.txt
+
+# Authentication files
+auth/
+.auth/
+*.auth
+*_auth*
+
+# Private keys and certificates
+*.der
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+# Config files with potential secrets
+config.local.json
+config.prod.json
+config.production.json
+.env.local
+.env.production
+.env.*.local
+
+# Session and temp auth files
+.session/
+session/
+*.session
+.tmp_auth/
+tmp_auth/
 
 # Logs
 logs/
