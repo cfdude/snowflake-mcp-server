@@ -23,7 +23,10 @@ The server provides the following tools for querying Snowflake:
 - **list_views**: List all views in a specified database and schema
 - **describe_view**: Get detailed information about a specific view including columns and SQL definition
 - **query_view**: Query data from a view with an optional row limit
-- **execute_query**: Execute custom SQL queries with configurable command restrictions (default: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, UNION) with results formatted as markdown tables
+- **execute_query**: Execute custom SQL queries with configurable command restrictions (default: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, UNION) with intelligent output handling:
+  - **Screen output**: Results formatted as markdown tables for smaller datasets
+  - **File output**: Automatic CSV/JSON file generation for large datasets that exceed AI token limits
+  - **Smart decision making**: Token-aware output routing based on result size and model capabilities
 
 ## Installation
 
@@ -124,6 +127,52 @@ When using with Claude, you can ask questions like:
 - "Run this SQL query: SELECT customer_id, SUM(order_total) as total_spend FROM SALES.ORDERS GROUP BY customer_id ORDER BY total_spend DESC LIMIT 10"
 - "Query the MARKETING database to find the top 5 performing campaigns by conversion rate"
 - "Compare data from views in different databases by querying SALES.CUSTOMER_METRICS and MARKETING.CAMPAIGN_RESULTS"
+
+## File Output for Large Datasets
+
+The server includes intelligent output management for handling large query results that exceed AI model token limits.
+
+### Configuration
+
+Add these settings to your `.env` file to configure file output behavior:
+
+```bash
+# Model Configuration (source: https://llm-stats.com)
+MODEL_NAME=claude-4-sonnet
+MODEL_CONTEXT_TOKEN_LIMIT=200000
+MODEL_SAFETY_MARGIN=0.7
+
+# Output Behavior
+DEFAULT_OUTPUT=auto        # auto|screen|file
+DEFAULT_FILE_FORMAT=csv    # csv|json
+DEFAULT_OUTPUT_DIR=./query_results
+AUTO_GENERATE_FILENAME=true
+FILENAME_PATTERN=query_{date}_{time}
+```
+
+### Usage Examples
+
+```bash
+# Let server decide based on result size
+execute_query: "SELECT * FROM large_table"
+
+# Force file output with custom settings
+execute_query: {
+  "query": "SELECT * FROM large_table", 
+  "output": "file",
+  "format": "json",
+  "location": "./reports",
+  "filename": "analysis_results.json"
+}
+
+# Use environment defaults
+execute_query: {
+  "query": "SELECT * FROM data_warehouse",
+  "output": "auto"
+}
+```
+
+When file output is used, you'll receive detailed information about the generated file including path, size, and row count, allowing you to read and analyze the results separately.
 
 ### Configuration
 

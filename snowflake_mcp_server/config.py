@@ -180,6 +180,39 @@ class DevelopmentConfig(BaseModel):
     mock_snowflake: bool = Field(False, description="Mock Snowflake responses for testing")
 
 
+class OutputConfig(BaseModel):
+    """Output and token management configuration."""
+    
+    model_name: str = Field("unknown", description="Model name for reference")
+    model_token_limit: int = Field(100000, description="Model's token context limit")
+    safety_margin: float = Field(0.7, description="Safety margin for token limit")
+    default_output: str = Field("auto", description="Default output mode")
+    default_file_format: str = Field("csv", description="Default file format")
+    default_output_dir: str = Field("./query_results", description="Default output directory")
+    auto_generate_filename: bool = Field(True, description="Auto-generate filenames")
+    filename_pattern: str = Field("query_{date}_{time}", description="Filename pattern")
+    token_sample_size: int = Field(100, description="Sample size for token estimation")
+    log_token_estimation: bool = Field(False, description="Log token estimation details")
+    
+    @validator('default_output')
+    def validate_output_mode(cls, v):
+        if v not in ['auto', 'screen', 'file']:
+            raise ValueError("default_output must be 'auto', 'screen', or 'file'")
+        return v
+    
+    @validator('default_file_format')
+    def validate_file_format(cls, v):
+        if v not in ['csv', 'json']:
+            raise ValueError("default_file_format must be 'csv' or 'json'")
+        return v
+    
+    @validator('safety_margin')
+    def validate_safety_margin(cls, v):
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("safety_margin must be between 0.0 and 1.0")
+        return v
+
+
 class ServerConfig(BaseModel):
     """Complete server configuration."""
     
@@ -195,6 +228,7 @@ class ServerConfig(BaseModel):
     security: SecurityConfig
     monitoring: MonitoringConfig
     development: DevelopmentConfig
+    output: OutputConfig
     
     @validator('environment')
     def validate_environment(cls, v):
@@ -287,6 +321,19 @@ def load_config() -> ServerConfig:
                 log_sql_queries=get_env("LOG_SQL_QUERIES", False, bool),
                 enable_profiling=get_env("ENABLE_PROFILING", False, bool),
                 mock_snowflake=get_env("MOCK_SNOWFLAKE", False, bool),
+            ),
+            
+            output=OutputConfig(
+                model_name=get_env("MODEL_NAME", "unknown"),
+                model_token_limit=get_env("MODEL_CONTEXT_TOKEN_LIMIT", 100000, int),
+                safety_margin=get_env("MODEL_SAFETY_MARGIN", 0.7, float),
+                default_output=get_env("DEFAULT_OUTPUT", "auto"),
+                default_file_format=get_env("DEFAULT_FILE_FORMAT", "csv"),
+                default_output_dir=get_env("DEFAULT_OUTPUT_DIR", "./query_results"),
+                auto_generate_filename=get_env("AUTO_GENERATE_FILENAME", True, bool),
+                filename_pattern=get_env("FILENAME_PATTERN", "query_{date}_{time}"),
+                token_sample_size=get_env("TOKEN_ESTIMATION_SAMPLE_SIZE", 100, int),
+                log_token_estimation=get_env("LOG_TOKEN_ESTIMATION", False, bool),
             ),
         )
         
