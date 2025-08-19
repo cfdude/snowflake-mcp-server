@@ -9,7 +9,7 @@ A Model Context Protocol (MCP) server for performing read-only operations agains
   - External browser authentication for interactive sessions
 - Connection pooling with automatic background refresh to maintain persistent connections
 - Support for querying multiple views and databases in a single session
-- Support for multiple SQL statement types (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH)
+- Configurable SQL statement types (default: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, UNION; configurable via ALLOWED_SQL_COMMANDS)
 - MCP-compatible handlers for querying Snowflake data
 - Read-only operations with security checks to prevent data modification
 - Support for Python 3.12+
@@ -23,7 +23,7 @@ The server provides the following tools for querying Snowflake:
 - **list_views**: List all views in a specified database and schema
 - **describe_view**: Get detailed information about a specific view including columns and SQL definition
 - **query_view**: Query data from a view with an optional row limit
-- **execute_query**: Execute custom read-only SQL queries (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH) with results formatted as markdown tables
+- **execute_query**: Execute custom SQL queries with configurable command restrictions (default: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, UNION) with results formatted as markdown tables
 
 ## Installation
 
@@ -158,10 +158,11 @@ This method opens a browser window for interactive authentication.
 ## Security Considerations
 
 This server:
-- Enforces read-only operations (only SELECT, SHOW, DESCRIBE, EXPLAIN, and WITH statements are allowed)
+- Enforces configurable SQL command restrictions (default: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, and UNION statements)
 - Automatically adds LIMIT clauses to prevent large result sets
 - Uses secure authentication methods for connections to Snowflake
 - Validates inputs to prevent SQL injection
+- Allows customization of allowed SQL commands via ALLOWED_SQL_COMMANDS environment variable for operational flexibility
 
 ⚠️ **Important**: Keep your `.env` file secure and never commit it to version control. The `.gitignore` file is configured to exclude it.
 
