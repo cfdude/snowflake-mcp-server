@@ -189,6 +189,7 @@ class OutputConfig(BaseModel):
     default_output: str = Field("auto", description="Default output mode")
     default_file_format: str = Field("csv", description="Default file format")
     default_output_dir: str = Field("./query_results", description="Default output directory")
+    client_root: Optional[str] = Field(None, description="Client project root directory (from MCP_CLIENT_ROOT)")
     auto_generate_filename: bool = Field(True, description="Auto-generate filenames")
     filename_pattern: str = Field("query_{date}_{time}", description="Filename pattern")
     token_sample_size: int = Field(100, description="Sample size for token estimation")
@@ -330,6 +331,7 @@ def load_config() -> ServerConfig:
                 default_output=get_env("DEFAULT_OUTPUT", "auto"),
                 default_file_format=get_env("DEFAULT_FILE_FORMAT", "csv"),
                 default_output_dir=get_env("DEFAULT_OUTPUT_DIR", "./query_results"),
+                client_root=get_env("MCP_CLIENT_ROOT"),
                 auto_generate_filename=get_env("AUTO_GENERATE_FILENAME", True, bool),
                 filename_pattern=get_env("FILENAME_PATTERN", "query_{date}_{time}"),
                 token_sample_size=get_env("TOKEN_ESTIMATION_SAMPLE_SIZE", 100, int),

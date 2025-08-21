@@ -748,6 +748,26 @@ def run_stdio_server() -> None:
         # Create tool definitions for all Snowflake tools
         @server.list_tools()
         async def list_tools() -> List[mcp_types.Tool]:
+            """
+            AI Usage Guide for Snowflake MCP Server:
+            
+            SMART OUTPUT HANDLING:
+            - Use output='auto' (default) for intelligent routing based on result size
+            - Server automatically saves large results to files when they exceed token limits:
+              * Claude Sonnet: ~140K tokens safe (200K limit)
+              * GPT-4: ~70K tokens safe (100K limit) 
+              * Gemini Pro: ~700K tokens safe (1M limit)
+            
+            WHEN TO USE EACH OUTPUT MODE:
+            - output='auto': Let server decide (recommended for all queries)
+            - output='screen': Small results, want inline display
+            - output='file': Large datasets, reports, data exports
+            
+            PARAMETER PRECEDENCE (AI parameters always override environment):
+            - Specify only parameters you want to control
+            - Leave others blank to use environment defaults
+            - Example: {"query": "...", "format": "json"} uses env location/filename
+            """
             return [
                 mcp_types.Tool(
                     name="list_databases",
@@ -822,7 +842,7 @@ def run_stdio_server() -> None:
                 ),
                 mcp_types.Tool(
                     name="execute_query",
-                    description="Execute a SQL query against Snowflake with optional transaction control",
+                    description="Execute SQL queries with intelligent output handling: automatically saves large results to files when they exceed AI token limits, returns smaller results inline. Supports CSV/JSON formats with customizable parameters.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -853,20 +873,20 @@ def run_stdio_server() -> None:
                             "output": {
                                 "type": "string",
                                 "enum": ["auto", "screen", "file"],
-                                "description": "Output mode: auto (let server decide based on token estimation), screen (inline), file (save to disk)"
+                                "description": "Output mode: 'auto' (recommended - server intelligently decides based on result size vs model token limits), 'screen' (force inline display for small results), 'file' (force file output for large datasets or when you need to preserve results)"
                             },
                             "format": {
                                 "type": "string", 
                                 "enum": ["csv", "json"],
-                                "description": "File format when output is file (default from environment)"
+                                "description": "File format: 'csv' (human-readable, Excel-compatible), 'json' (structured data, programmatic analysis). Only used when output is 'file'"
                             },
                             "location": {
                                 "type": "string",
-                                "description": "Output directory path - relative to project root or absolute (default from environment)"
+                                "description": "Output directory path (relative to server root or absolute). Leave blank to use default from environment. Only used when output is 'file'"
                             },
                             "filename": {
                                 "type": "string",
-                                "description": "Output filename - auto-generated if not provided and AUTO_GENERATE_FILENAME=true"
+                                "description": "Custom output filename (without extension). Leave blank for auto-generated timestamp-based names. Extension auto-added based on format"
                             },
                         },
                         "required": ["query"],

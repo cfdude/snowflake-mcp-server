@@ -55,8 +55,29 @@ class ResultOutputHandler:
         if os.path.isabs(base_dir):
             output_dir = Path(base_dir)
         else:
-            # Relative to project root (where MCP server is running)
-            output_dir = Path.cwd() / base_dir
+            # Relative to client project root if available
+            if self.config.client_root:
+                # Client root is provided - use it as the base for relative paths
+                output_dir = Path(self.config.client_root) / base_dir
+            else:
+                # CRITICAL: If no client root is provided, we must refuse to write files
+                # to avoid polluting the MCP server directory with client data
+                raise ValueError(
+                    "Cannot determine output location: MCP_CLIENT_ROOT environment variable not set. "
+                    "Files cannot be written to the MCP server directory to avoid data pollution. "
+                    "Please set MCP_CLIENT_ROOT to the calling project's root directory."
+                )
+        
+        # Additional safety check: Never write to the MCP server's installation directory
+        server_dir = Path(__file__).parent.parent.parent.resolve()
+        resolved_output = output_dir.resolve()
+        
+        if resolved_output.is_relative_to(server_dir):
+            raise ValueError(
+                f"SECURITY ERROR: Attempted to write files to MCP server directory ({server_dir}). "
+                f"Output directory ({resolved_output}) must be outside the server installation. "
+                f"Please set MCP_CLIENT_ROOT environment variable to your project root."
+            )
         
         # Create directory if it doesn't exist
         try:

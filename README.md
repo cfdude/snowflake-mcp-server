@@ -137,6 +137,10 @@ The server includes intelligent output management for handling large query resul
 Add these settings to your `.env` file to configure file output behavior:
 
 ```bash
+# CRITICAL: Client working directory (set by MCP client)
+# This prevents files from being written to the MCP server directory
+MCP_CLIENT_ROOT=/path/to/your/project
+
 # Model Configuration (source: https://llm-stats.com)
 MODEL_NAME=claude-4-sonnet
 MODEL_CONTEXT_TOKEN_LIMIT=200000
@@ -145,34 +149,93 @@ MODEL_SAFETY_MARGIN=0.7
 # Output Behavior
 DEFAULT_OUTPUT=auto        # auto|screen|file
 DEFAULT_FILE_FORMAT=csv    # csv|json
-DEFAULT_OUTPUT_DIR=./query_results
+DEFAULT_OUTPUT_DIR=./query_results  # Relative to MCP_CLIENT_ROOT
 AUTO_GENERATE_FILENAME=true
 FILENAME_PATTERN=query_{date}_{time}
 ```
 
+**🚨 Important**: The `MCP_CLIENT_ROOT` environment variable **must** be set to your project's root directory. This ensures files are written to your project, not the MCP server's installation directory.
+
 ### Usage Examples
 
-```bash
-# Let server decide based on result size
-execute_query: "SELECT * FROM large_table"
-
-# Force file output with custom settings
-execute_query: {
-  "query": "SELECT * FROM large_table", 
-  "output": "file",
-  "format": "json",
-  "location": "./reports",
-  "filename": "analysis_results.json"
-}
-
-# Use environment defaults
-execute_query: {
-  "query": "SELECT * FROM data_warehouse",
-  "output": "auto"
+**Simple queries (recommended approach):**
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "query": "SELECT * FROM large_customer_data"
+  }
 }
 ```
+*Server automatically decides screen vs file output based on result size*
+
+**Force file output for large datasets:**
+```json
+{
+  "name": "execute_query", 
+  "arguments": {
+    "query": "SELECT * FROM transaction_history WHERE year = 2024",
+    "output": "file",
+    "format": "csv"
+  }
+}
+```
+*Uses environment defaults for location and filename*
+
+**Custom file export:**
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "query": "SELECT customer_id, total_revenue FROM sales_summary",
+    "output": "file",
+    "format": "json", 
+    "location": "./reports",
+    "filename": "q4_revenue_analysis"
+  }
+}
+```
+*Saves as ./reports/q4_revenue_analysis.json*
+
+**Force inline display:**
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "query": "SELECT COUNT(*) FROM users",
+    "output": "screen"
+  }
+}
+```
+*Always shows results inline regardless of size*
 
 When file output is used, you'll receive detailed information about the generated file including path, size, and row count, allowing you to read and analyze the results separately.
+
+### Working Directory Handling
+
+**🔧 How It Works:**
+
+- **`MCP_CLIENT_ROOT`**: The calling project's root directory (e.g., `/Users/yourname/projects/highway-snowflake`)
+- **`DEFAULT_OUTPUT_DIR`**: Relative path within the client project (e.g., `./query_results`)
+- **Final Path**: Files written to `{MCP_CLIENT_ROOT}/{DEFAULT_OUTPUT_DIR}/filename.csv`
+
+**🛡️ Security Features:**
+- **Never writes to MCP server directory** - prevents data pollution
+- **Requires `MCP_CLIENT_ROOT`** - fails safely if not configured
+- **Path validation** - blocks attempts to write outside client project
+
+**⚙️ Claude Desktop Setup:**
+```yaml
+"snowflake-mcp-server": {
+  "command": "uv",
+  "args": ["--directory", "/path/to/snowflake-mcp-server", "run", "snowflake-mcp"],
+  "env": {
+    "MCP_CLIENT_ROOT": "/Users/yourname/projects/your-current-project",
+    "SNOWFLAKE_ACCOUNT": "your-account",
+    "SNOWFLAKE_USER": "your-user"
+  }
+}
+```
 
 ### Configuration
 

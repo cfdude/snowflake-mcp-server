@@ -163,3 +163,6 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# Query output files
+query_results/
