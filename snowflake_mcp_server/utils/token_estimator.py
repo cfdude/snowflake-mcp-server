@@ -129,6 +129,9 @@ class TokenEstimator:
         """
         Determines if file output should be used.
         Returns (use_file, reasoning_dict)
+        
+        Note: Claude manages its own context window, so we use simple heuristics
+        instead of trying to estimate tokens.
         """
         # Respect forced output mode
         if force_output == "file":
@@ -136,36 +139,41 @@ class TokenEstimator:
         elif force_output == "screen":
             return False, {"reason": "User requested screen output", "forced": True}
         
-        # Auto mode - estimate tokens
-        estimate = await self.estimate_query_tokens(query, db_ops)
-        estimated_tokens = estimate["estimated_total_tokens"]
-        
-        if self.config.log_token_estimation:
-            logger.info(f"Token estimation for {self.config.model_name}: "
-                       f"{estimated_tokens:,} tokens "
-                       f"(limit: {self.config.model_token_limit:,}, "
-                       f"safe: {self.safe_token_limit:,})")
-        
-        if estimated_tokens > self.safe_token_limit:
-            return True, {
-                "reason": f"Estimated {estimated_tokens:,} tokens exceeds "
-                         f"{self.config.model_name} safe limit of {self.safe_token_limit:,} tokens",
-                "estimated_tokens": estimated_tokens,
-                "model_limit": self.config.model_token_limit,
-                "safe_limit": self.safe_token_limit,
-                "estimate_details": estimate,
+        # Auto mode - use simple row-based heuristic instead of token estimation
+        # Let Claude handle its own context management
+        try:
+            # Quick row count check - much faster than token estimation
+            count_query = f"SELECT COUNT(*) FROM ({query}) AS count_subq"
+            count_result = await db_ops.execute_query_one(count_query)
+            total_rows = count_result[0] if count_result else 0
+            
+            # Simple heuristic: use file output for very large result sets
+            # But let Claude handle normal-sized results
+            row_threshold = self.config.screen_output_row_threshold
+            
+            if total_rows > row_threshold:
+                return True, {
+                    "reason": f"Result has {total_rows:,} rows (>{row_threshold:,} threshold) - using file output for large dataset",
+                    "row_count": total_rows,
+                    "threshold": row_threshold,
+                    "forced": False
+                }
+            else:
+                return False, {
+                    "reason": f"Result has {total_rows:,} rows (<={row_threshold:,} threshold) - Claude will manage context",
+                    "row_count": total_rows, 
+                    "threshold": row_threshold,
+                    "forced": False
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting row count: {e}")
+            # On error, default to screen output and let Claude handle it
+            return False, {
+                "reason": "Unable to determine size, letting Claude manage output",
+                "error": str(e),
                 "forced": False
             }
-        
-        return False, {
-            "reason": f"Estimated {estimated_tokens:,} tokens fits within "
-                     f"{self.config.model_name} safe limit of {self.safe_token_limit:,} tokens",
-            "estimated_tokens": estimated_tokens,
-            "model_limit": self.config.model_token_limit,
-            "safe_limit": self.safe_token_limit,
-            "estimate_details": estimate,
-            "forced": False
-        }
     
     def _row_to_text(self, row: Tuple[Any, ...], columns: List[str]) -> str:
         """Convert a database row to text representation."""
