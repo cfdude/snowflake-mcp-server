@@ -886,7 +886,7 @@ def run_stdio_server() -> None:
                             },
                             "filename": {
                                 "type": "string",
-                                "description": "Custom output filename (without extension). Leave blank for auto-generated timestamp-based names. Extension auto-added based on format"
+                                "description": "Custom output filename (with or without extension). Leave blank for auto-generated timestamp-based names. If no extension provided, it will be auto-added based on format"
                             },
                         },
                         "required": ["query"],

@@ -126,6 +126,10 @@ class ResultOutputHandler:
         # Generate filename if not provided
         if not filename:
             filename = self.generate_filename(format, query)
+        else:
+            # User provided filename - add extension if not present (case-insensitive)
+            if not filename.lower().endswith(f".{format.lower()}"):
+                filename = f"{filename}.{format}"
         
         # Resolve full output path
         output_path = self.resolve_output_path(location, filename)
