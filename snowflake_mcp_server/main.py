@@ -37,6 +37,7 @@ from snowflake_mcp_server.utils.contextual_logging import (
     log_request_start,
     setup_server_logging,
 )
+from snowflake_mcp_server.utils.output_handler import ResultOutputHandler
 from snowflake_mcp_server.utils.request_context import RequestContext, request_context
 from snowflake_mcp_server.utils.snowflake_conn import (
     AuthType,
@@ -445,7 +446,7 @@ async def handle_execute_query(
 ) -> Sequence[
     Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]
 ]:
-    """Tool handler to execute read-only SQL queries with complete isolation."""
+    """Tool handler to execute read-only SQL queries with smart output handling."""
     try:
         # Extract arguments
         query = arguments.get("query") if arguments else None
@@ -456,6 +457,12 @@ async def handle_execute_query(
             if arguments and arguments.get("limit") is not None
             else 100
         )  # Default limit to 100 rows
+        
+        # New output parameters with precedence handling
+        output_mode = arguments.get("output")  # Could be None
+        file_format = arguments.get("format")  # Could be None  
+        location = arguments.get("location")   # Could be None
+        filename = arguments.get("filename")   # Could be None
         
         # Transaction control parameters (for read-only operations)
         use_transaction = arguments.get("use_transaction", False) if arguments else False
@@ -468,12 +475,35 @@ async def handle_execute_query(
                 )
             ]
 
+        # Load configuration
+        config = get_config()
+        output_config = config.output
+        
+        # Apply defaults from environment ONLY if AI didn't specify
+        if output_mode is None:
+            output_mode = output_config.default_output
+        if file_format is None:
+            file_format = output_config.default_file_format
+        if location is None:
+            location = output_config.default_output_dir
+
+        # Initialize output handler
+        output_handler = ResultOutputHandler(output_config)
+
+        # Validate output parameters
+        is_valid, error_msg = output_handler.validate_output_parameters(
+            output_mode, file_format, location, filename
+        )
+        if not is_valid:
+            return [
+                mcp_types.TextContent(
+                    type="text", text=f"Error: {error_msg}"
+                )
+            ]
+
         # Validate that the query uses allowed SQL commands
         try:
-            # Get allowed SQL commands from configuration
-            config = get_config()
             allowed_types = set(config.security.allowed_sql_commands)
-            
             parsed_statements = sqlglot.parse(query, dialect="snowflake")
 
             if not parsed_statements:
@@ -488,18 +518,13 @@ async def handle_execute_query(
                     stmt_key = stmt.key.lower()
                     
                     # Special handling for commands that sqlglot parses as "command" type
-                    # but should be treated as their actual command types
                     if stmt_key == "command" and hasattr(stmt, "this") and stmt.this:
                         command_text = str(stmt.this).strip().upper()
                         if command_text.startswith("CALL"):
                             stmt_key = "call"
                         elif command_text.startswith("SHOW"):
-                            # SHOW GRANTS and similar commands get parsed as "command" type
-                            # but should be treated as "show" commands
                             stmt_key = "show"
                         elif command_text.startswith("DESCRIBE") or command_text.startswith("DESC"):
-                            # DESCRIBE TABLE and DESC TABLE commands get parsed as "command" type
-                            # but should be treated as "describe" commands
                             stmt_key = "describe"
                     
                     if stmt_key not in allowed_types:
@@ -509,8 +534,6 @@ async def handle_execute_query(
                         )
 
         except ParseError as e:
-            # Get allowed commands for error message
-            config = get_config()
             allowed_commands_upper = [cmd.upper() for cmd in config.security.allowed_sql_commands]
             allowed_commands_str = "/".join(sorted(allowed_commands_upper))
             
@@ -524,47 +547,133 @@ async def handle_execute_query(
         # Choose appropriate database operations based on transaction requirements
         if use_transaction:
             async with get_transactional_database_ops(request_ctx) as db_ops:
-                # Set database and schema context in isolation
-                if database:
-                    await db_ops.use_database_isolated(database)
-                if schema:
-                    await db_ops.use_schema_isolated(schema)
-
-                # Get current context for display
-                current_db, current_schema = await db_ops.get_current_context()
-
-                # Add LIMIT clause only for SELECT queries that don't already have a LIMIT
-                query_upper = query.strip().upper()
-                if (query_upper.startswith("SELECT") or query_upper.startswith("WITH")) and "LIMIT " not in query_upper:
-                    query = query.rstrip().rstrip(";")
-                    query = f"{query} LIMIT {limit_rows};"
-
-                # Execute query with transaction control
-                rows, column_names = await db_ops.execute_with_transaction(query, auto_commit)
+                return await _execute_query_with_output(
+                    query, db_ops, output_handler, output_mode, file_format, 
+                    location, filename, request_ctx, database, schema, 
+                    limit_rows, use_transaction, auto_commit
+                )
         else:
             async with get_isolated_database_ops(request_ctx) as db_ops:
-                # Set database and schema context in isolation
-                if database:
-                    await db_ops.use_database_isolated(database)
-                if schema:
-                    await db_ops.use_schema_isolated(schema)
+                return await _execute_query_with_output(
+                    query, db_ops, output_handler, output_mode, file_format,
+                    location, filename, request_ctx, database, schema,
+                    limit_rows, use_transaction, auto_commit
+                )
 
-                # Get current context for display
-                current_db, current_schema = await db_ops.get_current_context()
+    except Exception as e:
+        logger.error(f"Error executing query: {e}")
+        return [
+            mcp_types.TextContent(type="text", text=f"Error executing query: {str(e)}")
+        ]
 
-                # Add LIMIT clause only for SELECT queries that don't already have a LIMIT
-                query_upper = query.strip().upper()
-                if (query_upper.startswith("SELECT") or query_upper.startswith("WITH")) and "LIMIT " not in query_upper:
-                    query = query.rstrip().rstrip(";")
-                    query = f"{query} LIMIT {limit_rows};"
 
-                # Execute query in isolated context (default auto-commit behavior)
-                rows, column_names = await db_ops.execute_query_isolated(query)
+async def _execute_query_with_output(
+    query: str,
+    db_ops,
+    output_handler: ResultOutputHandler,
+    output_mode: str,
+    file_format: str,
+    location: Optional[str],
+    filename: Optional[str],
+    request_ctx: RequestContext,
+    database: Optional[str],
+    schema: Optional[str],
+    limit_rows: int,
+    use_transaction: bool,
+    auto_commit: bool
+) -> Sequence[Union[mcp_types.TextContent, mcp_types.ImageContent, mcp_types.EmbeddedResource]]:
+    """Execute query with smart output handling."""
+    
+    # Set database and schema context
+    if database:
+        await db_ops.use_database_isolated(database)
+    if schema:
+        await db_ops.use_schema_isolated(schema)
+
+    # Get current context for display
+    current_db, current_schema = await db_ops.get_current_context()
+
+    # For file output, don't add automatic LIMIT - let token estimation decide
+    original_query = query
+    
+    # Only add LIMIT for screen output or when explicitly requested
+    if output_mode == "screen" or (output_mode == "auto" and "LIMIT " not in query.upper()):
+        query_upper = query.strip().upper()
+        if (query_upper.startswith("SELECT") or query_upper.startswith("WITH")) and "LIMIT " not in query_upper:
+            query = query.rstrip().rstrip(";")
+            query = f"{query} LIMIT {limit_rows};"
+
+    # Determine output strategy
+    use_file, reasoning = await output_handler.estimator.should_use_file_output(
+        original_query, db_ops, 
+        force_output=None if output_mode == "auto" else output_mode
+    )
+
+    if use_file:
+        # Generate filename if needed
+        if not filename and output_handler.config.auto_generate_filename:
+            filename = output_handler.generate_filename(file_format, original_query)
+
+        # Write to file
+        try:
+            result = await output_handler.write_to_file(
+                original_query, db_ops, file_format, location, filename
+            )
+            
+            # Build parameter sources for feedback
+            param_sources = []
+            if filename:
+                param_sources.append(f"Filename: {result['file_path'].split('/')[-1]} (specified)")
+            else:
+                param_sources.append(f"Filename: {result['file_path'].split('/')[-1]} (auto-generated)")
+            
+            param_sources.append(f"Location: {location}")
+            param_sources.append(f"Format: {file_format}")
+
+            response_text = f"""Query executed and saved to file.
+
+**Configuration:** {output_handler.config.model_name} (limit: {output_handler.config.model_token_limit:,} tokens)
+**Output Decision:** {reasoning['reason']}
+
+**Parameters Used:**
+{chr(10).join('- ' + p for p in param_sources)}
+
+**File Details:**
+- Full Path: `{result['file_path']}`
+- Format: {result['format'].upper()}
+- Rows: {result['rows_written']:,}
+- Columns: {result['columns_written']}
+- Size: {result['file_size_readable']} ({result['file_size_bytes']:,} bytes)
+
+**Database Context:** {current_db}.{current_schema}
+**Request ID:** {request_ctx.request_id}
+
+File saved successfully. You can read this file for analysis."""
+
+            return [mcp_types.TextContent(type="text", text=response_text)]
+            
+        except Exception as e:
+            logger.error(f"Error writing to file: {e}")
+            return [
+                mcp_types.TextContent(
+                    type="text", 
+                    text=f"Error writing query results to file: {str(e)}"
+                )
+            ]
+
+    else:
+        # Screen output (existing logic)
+        if use_transaction:
+            rows, column_names = await db_ops.execute_with_transaction(query, auto_commit)
+        else:
+            rows, column_names = await db_ops.execute_query_isolated(query)
 
         if rows:
             # Format results
             result = f"## Query Results (Database: {current_db}, Schema: {current_schema})\n\n"
             result += f"Request ID: {request_ctx.request_id}\n"
+            result += f"Model: {output_handler.config.model_name} (limit: {output_handler.config.model_token_limit:,} tokens)\n"
+            result += f"Output Decision: {reasoning['reason']}\n"
             if use_transaction:
                 result += f"Transaction Mode: {'Auto-commit' if auto_commit else 'Explicit'}\n"
             result += f"Showing {len(rows)} row{'s' if len(rows) != 1 else ''}\n\n"
@@ -595,12 +704,6 @@ async def handle_execute_query(
                     text="Query completed successfully but returned no results.",
                 )
             ]
-
-    except Exception as e:
-        logger.error(f"Error executing query: {e}")
-        return [
-            mcp_types.TextContent(type="text", text=f"Error executing query: {str(e)}")
-        ]
 
 
 # Function to run the server with stdio interface
@@ -645,6 +748,26 @@ def run_stdio_server() -> None:
         # Create tool definitions for all Snowflake tools
         @server.list_tools()
         async def list_tools() -> List[mcp_types.Tool]:
+            """
+            AI Usage Guide for Snowflake MCP Server:
+            
+            SMART OUTPUT HANDLING:
+            - Use output='auto' (default) for intelligent routing based on result size
+            - Server automatically saves large results to files when they exceed token limits:
+              * Claude Sonnet: ~140K tokens safe (200K limit)
+              * GPT-4: ~70K tokens safe (100K limit) 
+              * Gemini Pro: ~700K tokens safe (1M limit)
+            
+            WHEN TO USE EACH OUTPUT MODE:
+            - output='auto': Let server decide (recommended for all queries)
+            - output='screen': Small results, want inline display
+            - output='file': Large datasets, reports, data exports
+            
+            PARAMETER PRECEDENCE (AI parameters always override environment):
+            - Specify only parameters you want to control
+            - Leave others blank to use environment defaults
+            - Example: {"query": "...", "format": "json"} uses env location/filename
+            """
             return [
                 mcp_types.Tool(
                     name="list_databases",
@@ -719,7 +842,7 @@ def run_stdio_server() -> None:
                 ),
                 mcp_types.Tool(
                     name="execute_query",
-                    description="Execute a SQL query against Snowflake with optional transaction control",
+                    description="Execute SQL queries with intelligent output handling: automatically saves large results to files when they exceed AI token limits, returns smaller results inline. Supports CSV/JSON formats with customizable parameters.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -746,6 +869,24 @@ def run_stdio_server() -> None:
                             "auto_commit": {
                                 "type": "boolean", 
                                 "description": "Auto-commit transaction when use_transaction is true (default: true)",
+                            },
+                            "output": {
+                                "type": "string",
+                                "enum": ["auto", "screen", "file"],
+                                "description": "Output mode: 'auto' (recommended - server intelligently decides based on result size vs model token limits), 'screen' (force inline display for small results), 'file' (force file output for large datasets or when you need to preserve results)"
+                            },
+                            "format": {
+                                "type": "string", 
+                                "enum": ["csv", "json"],
+                                "description": "File format: 'csv' (human-readable, Excel-compatible), 'json' (structured data, programmatic analysis). Only used when output is 'file'"
+                            },
+                            "location": {
+                                "type": "string",
+                                "description": "Output directory path (relative to server root or absolute). Leave blank to use default from environment. Only used when output is 'file'"
+                            },
+                            "filename": {
+                                "type": "string",
+                                "description": "Custom output filename (with or without extension). Leave blank for auto-generated timestamp-based names. If no extension provided, it will be auto-added based on format"
                             },
                         },
                         "required": ["query"],
@@ -829,7 +970,11 @@ async def get_available_tools() -> List[Dict[str, Any]]:
                 "schema": {"type": "string", "required": False},
                 "limit": {"type": "integer", "required": False},
                 "use_transaction": {"type": "boolean", "required": False},
-                "auto_commit": {"type": "boolean", "required": False}
+                "auto_commit": {"type": "boolean", "required": False},
+                "output": {"type": "string", "required": False, "description": "Output mode: auto, screen, or file"},
+                "format": {"type": "string", "required": False, "description": "File format: csv or json"},
+                "location": {"type": "string", "required": False, "description": "Output directory path"},
+                "filename": {"type": "string", "required": False, "description": "Output filename"}
             }
         }
     ]
