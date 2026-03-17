@@ -126,15 +126,10 @@ class AsyncDatabaseOperations:
         """Execute a query with result limit."""
         try:
             async with self.cursor_manager.cursor() as cursor:
-                loop = asyncio.get_event_loop()
-                
-                def _execute() -> Tuple[List[Any], List[str]]:
-                    cursor.execute(query)
-                    results = list(cursor.fetchmany(limit))
-                    column_names = [desc[0] for desc in cursor.description or []]
-                    return results, column_names
-                
-                return await loop.run_in_executor(None, _execute)
+                await cursor.execute(query)
+                results = await cursor.fetchmany(limit)
+                column_names = [desc[0] for desc in cursor.cursor.description or []]
+                return list(results), column_names
         except Exception as e:
             logger.error(f"Limited query execution failed: {query[:100]}... Error: {e}")
             raise
