@@ -5,13 +5,13 @@ module.exports = {
       name: 'snowflake-mcp-http',
       script: 'uv',
       args: 'run snowflake-mcp-http --host 0.0.0.0 --port 8000',
-      cwd: '/Users/robsherman/Servers/snowflake-mcp-server-origin-dev',
+      cwd: '/Users/robsherman/Servers/snowflake-mcp-server',
       instances: 1,
       exec_mode: 'fork',
       watch: false,
       env: {
         NODE_ENV: 'production',
-        PYTHONPATH: '/Users/robsherman/Servers/snowflake-mcp-server-origin-dev',
+        PYTHONPATH: '/Users/robsherman/Servers/snowflake-mcp-server',
         SNOWFLAKE_CONN_REFRESH_HOURS: '8',
         UVICORN_LOG_LEVEL: 'info'
       },
@@ -52,7 +52,7 @@ module.exports = {
       name: 'snowflake-mcp-stdio',
       script: 'uv',
       args: 'run snowflake-mcp-stdio',
-      cwd: '/Users/robsherman/Servers/snowflake-mcp-server-origin-dev',
+      cwd: '/Users/robsherman/Servers/snowflake-mcp-server',
       instances: 1,
       exec_mode: 'fork',
       watch: false,
@@ -62,7 +62,7 @@ module.exports = {
       
       env: {
         NODE_ENV: 'production',
-        PYTHONPATH: '/Users/robsherman/Servers/snowflake-mcp-server-origin-dev',
+        PYTHONPATH: '/Users/robsherman/Servers/snowflake-mcp-server',
         SNOWFLAKE_CONN_REFRESH_HOURS: '8'
       },
       
