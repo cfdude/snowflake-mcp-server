@@ -1,1 +1,0 @@
-"""Transport layer implementations for the Snowflake MCP server."""

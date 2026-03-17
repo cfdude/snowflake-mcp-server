@@ -211,48 +211,31 @@ class IsolatedDatabaseOperations(AsyncDatabaseOperations):
     
     async def use_database_isolated(self, database: str) -> None:
         """Switch database with isolation tracking."""
-        from .contextual_logging import log_database_operation
-        
         await self.use_database(database)
         self.request_context.set_database_context(database)
         self._context_changed = True
-        
-        log_database_operation("USE DATABASE", database=database)
+
         logger.debug(f"Request {self.request_context.request_id}: "
                     f"Changed to database {database}")
     
     async def use_schema_isolated(self, schema: str) -> None:
         """Switch schema with isolation tracking."""
-        from .contextual_logging import log_database_operation
-        
         await self.use_schema(schema)
         if self.request_context.database_context:
             self.request_context.set_database_context(
-                self.request_context.database_context, 
+                self.request_context.database_context,
                 schema
             )
         self._context_changed = True
-        
-        log_database_operation("USE SCHEMA", database=self.request_context.database_context, schema=schema)
+
         logger.debug(f"Request {self.request_context.request_id}: "
                     f"Changed to schema {schema}")
     
     async def execute_query_isolated(self, query: str) -> Tuple[List[Any], List[str]]:
         """Execute query with request tracking."""
-        from .contextual_logging import log_database_operation
-        
         try:
             self.request_context.increment_query_count()
-            
-            # Log the database operation
-            query_preview = query[:100] + ("..." if len(query) > 100 else "")
-            log_database_operation(
-                "EXECUTE_QUERY", 
-                database=self.request_context.database_context,
-                schema=self.request_context.schema_context,
-                query_preview=query_preview
-            )
-            
+
             logger.debug(f"Request {self.request_context.request_id}: "
                         f"Executing query: {query[:100]}...")
             
@@ -305,27 +288,24 @@ class TransactionalDatabaseOperations(IsolatedDatabaseOperations):
     
     async def execute_with_transaction(self, query: str, auto_commit: bool = True) -> Tuple[List[Any], List[str]]:
         """Execute query within transaction scope."""
-        from .contextual_logging import log_transaction_event
         from .transaction_manager import transaction_scope
-        
+
         self.request_context.increment_transaction_operation()
-        log_transaction_event("begin", auto_commit=auto_commit)
-        
+        logger.debug(f"Request {self.request_context.request_id}: begin transaction (auto_commit={auto_commit})")
+
         try:
             async with transaction_scope(self.connection, self.request_context.request_id, auto_commit) as tx_manager:
                 result = await self.execute_query_isolated(query)
-                
-                # Track commits/rollbacks based on transaction manager state
+
                 if not auto_commit and tx_manager.in_transaction:
                     self.request_context.increment_transaction_commit()
-                    log_transaction_event("commit")
-                
+                    logger.debug(f"Request {self.request_context.request_id}: commit transaction")
+
                 return result
         except Exception:
-            # Track rollback on exception
             if not auto_commit:
                 self.request_context.increment_transaction_rollback()
-                log_transaction_event("rollback")
+                logger.debug(f"Request {self.request_context.request_id}: rollback transaction")
             raise
     
     async def execute_multi_statement_transaction(self, queries: List[str]) -> List[Tuple[List[Any], List[str]]]:
@@ -363,39 +343,35 @@ class TransactionalDatabaseOperations(IsolatedDatabaseOperations):
 async def get_isolated_database_ops(request_context: "RequestContext") -> Any:
     """Get isolated database operations for a request."""
     from .async_pool import get_connection_pool
-    from .contextual_logging import log_connection_event
-    
+
     pool = await get_connection_pool()
     async with pool.acquire() as connection:
-        # Set connection ID in metrics and log acquisition
         connection_id = str(id(connection))
         request_context.metrics.connection_id = connection_id
-        log_connection_event("acquired", connection_id=connection_id)
-        
+        logger.debug(f"Connection {connection_id} acquired")
+
         try:
             db_ops = IsolatedDatabaseOperations(connection, request_context)
             async with db_ops:
                 yield db_ops
         finally:
-            log_connection_event("released", connection_id=connection_id)
+            logger.debug(f"Connection {connection_id} released")
 
 
 @asynccontextmanager
 async def get_transactional_database_ops(request_context: "RequestContext") -> Any:
     """Get transactional database operations for a request."""
     from .async_pool import get_connection_pool
-    from .contextual_logging import log_connection_event
-    
+
     pool = await get_connection_pool()
     async with pool.acquire() as connection:
-        # Set connection ID in metrics and log acquisition
         connection_id = str(id(connection))
         request_context.metrics.connection_id = connection_id
-        log_connection_event("acquired", connection_id=connection_id)
-        
+        logger.debug(f"Connection {connection_id} acquired (transactional)")
+
         try:
             db_ops = TransactionalDatabaseOperations(connection, request_context)
             async with db_ops:
                 yield db_ops
         finally:
-            log_connection_event("released", connection_id=connection_id)
+            logger.debug(f"Connection {connection_id} released (transactional)")

@@ -287,53 +287,27 @@ async def get_connection_pool() -> AsyncConnectionPool:
 async def initialize_connection_pool(
     snowflake_config: SnowflakeConfig,
     pool_config: Optional[ConnectionPoolConfig] = None,
-    enable_health_monitoring: bool = True
 ) -> None:
     """Initialize the global connection pool."""
     global _pool
     async with _pool_lock:
         if _pool is not None:
             await _pool.close()
-        
+
         if pool_config is None:
             pool_config = ConnectionPoolConfig()
-        
+
         _pool = AsyncConnectionPool(snowflake_config, pool_config)
         await _pool.initialize()
-        
-        # Start health monitoring if enabled
-        if enable_health_monitoring:
-            from .health_monitor import health_monitor
-            await health_monitor.start_monitoring()
 
 
 async def close_connection_pool() -> None:
     """Close the global connection pool."""
     global _pool
     async with _pool_lock:
-        # Stop health monitoring
-        try:
-            from .health_monitor import health_monitor
-            await health_monitor.stop_monitoring()
-        except Exception:
-            pass  # Ignore errors during cleanup
-        
         if _pool is not None:
             await _pool.close()
             _pool = None
-
-
-def get_pool_health_status() -> Dict[str, Any]:
-    """Get current health status of the connection pool."""
-    try:
-        from .health_monitor import health_monitor
-        return health_monitor.get_current_health()
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Failed to get health status: {e}",
-            "metrics": {}
-        }
 
 
 async def get_pool_status() -> Dict[str, Any]:

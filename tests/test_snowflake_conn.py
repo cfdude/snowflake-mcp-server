@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
-from mcp_server_snowflake.utils.snowflake_conn import (
+from snowflake_mcp_server.utils.snowflake_conn import (
     AuthType,
     SnowflakeConfig,
     get_snowflake_connection,
@@ -46,7 +46,7 @@ def snowflake_config_browser() -> SnowflakeConfig:
     )
 
 
-@patch("mcp_server_snowflake.utils.snowflake_conn.load_private_key")
+@patch("snowflake_mcp_server.utils.snowflake_conn.load_private_key")
 @patch("snowflake.connector.connect")
 def test_get_snowflake_connection_private_key(
     mock_connect: MagicMock,
