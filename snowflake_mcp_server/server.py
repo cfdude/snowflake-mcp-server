@@ -6,6 +6,9 @@ Snowflake connections are injected via request_context and isolated DB ops.
 """
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Annotated, Optional
 
 import sqlglot
@@ -19,10 +22,65 @@ from snowflake_mcp_server.utils.async_database import (
     get_isolated_database_ops,
     get_transactional_database_ops,
 )
+from snowflake_mcp_server.utils.async_pool import (
+    ConnectionPoolConfig,
+    close_connection_pool,
+    initialize_connection_pool,
+)
 from snowflake_mcp_server.utils.output_handler import ResultOutputHandler
 from snowflake_mcp_server.utils.request_context import request_context
+from snowflake_mcp_server.utils.snowflake_conn import (
+    AuthType,
+    SnowflakeConfig,
+    connection_manager,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# --- Lifespan: initialize/teardown Snowflake connection pool ---
+
+@asynccontextmanager
+async def lifespan(server: FastMCP) -> AsyncIterator[None]:
+    """Initialize Snowflake connection pool on startup, close on shutdown."""
+    config = get_config()
+
+    snowflake_config = SnowflakeConfig(
+        account=config.snowflake.account,
+        user=config.snowflake.user,
+        auth_type=(
+            AuthType.PRIVATE_KEY
+            if config.snowflake.auth_type == "private_key"
+            else AuthType.EXTERNAL_BROWSER
+        ),
+        private_key_path=config.snowflake.private_key_path,
+        warehouse=config.snowflake.warehouse,
+        database=config.snowflake.database,
+        schema_name=config.snowflake.schema_name,
+        role=config.snowflake.role,
+    )
+
+    pool_config = ConnectionPoolConfig(
+        min_size=config.pool.min_size,
+        max_size=config.pool.max_size,
+        max_inactive_time=timedelta(minutes=config.pool.max_inactive_time),
+        health_check_interval=timedelta(minutes=config.pool.health_check_interval),
+        connection_timeout=config.pool.connection_timeout,
+    )
+
+    # Initialize the legacy connection manager (used by async_database ops)
+    connection_manager.initialize(snowflake_config)
+
+    # Initialize the async connection pool
+    await initialize_connection_pool(snowflake_config, pool_config)
+    logger.info("Snowflake connection pool initialized")
+
+    yield
+
+    await close_connection_pool()
+    connection_manager.close()
+    logger.info("Snowflake connection pool closed")
+
 
 # --- FastMCP Server Instance ---
 
@@ -32,6 +90,7 @@ mcp = FastMCP(
         "MCP server for performing read-only operations against Snowflake. "
         "All tools are read-only and will not modify any data."
     ),
+    lifespan=lifespan,
 )
 
 
