@@ -11,9 +11,6 @@ def mock_snowflake_init():
     """Mock Snowflake connection initialization so lifespan doesn't need real credentials."""
     with (
         patch(
-            "snowflake_mcp_server.server.connection_manager"
-        ) as mock_cm,
-        patch(
             "snowflake_mcp_server.server.initialize_connection_pool",
             new_callable=AsyncMock,
         ),
@@ -22,8 +19,6 @@ def mock_snowflake_init():
             new_callable=AsyncMock,
         ),
     ):
-        mock_cm.initialize = MagicMock()
-        mock_cm.close = MagicMock()
         yield
 
 

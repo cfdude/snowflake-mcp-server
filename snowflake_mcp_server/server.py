@@ -32,7 +32,6 @@ from snowflake_mcp_server.utils.request_context import request_context
 from snowflake_mcp_server.utils.snowflake_conn import (
     AuthType,
     SnowflakeConfig,
-    connection_manager,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,17 +70,15 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
         connection_timeout=config.pool.connection_timeout,
     )
 
-    # Initialize the legacy connection manager (used by async_database ops)
-    connection_manager.initialize(snowflake_config)
-
     # Initialize the async connection pool
+    # For OAuth auth, the first connection will open a browser for consent.
+    # This happens in a thread via run_in_executor so it doesn't block the event loop.
     await initialize_connection_pool(snowflake_config, pool_config)
     logger.info("Snowflake connection pool initialized")
 
     yield
 
     await close_connection_pool()
-    connection_manager.close()
     logger.info("Snowflake connection pool closed")
 
 
