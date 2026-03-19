@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "snowflake-mcp-server"
 version = "1.0.0"
 description = "MCP server for performing read-only operations against Snowflake"
-readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = { text = "MIT" }
 dependencies = [
