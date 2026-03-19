@@ -36,6 +36,7 @@ class AuthType(str, Enum):
 
     PRIVATE_KEY = "private_key"
     EXTERNAL_BROWSER = "external_browser"
+    OAUTH = "oauth"
 
 
 class SnowflakeConfig(BaseModel):
@@ -51,6 +52,9 @@ class SnowflakeConfig(BaseModel):
         None  # Renamed from schema to avoid conflict with BaseModel
     )
     role: Optional[str] = None
+    # OAuth fields
+    oauth_client_id: Optional[str] = None
+    oauth_client_secret: Optional[str] = None
 
     @field_validator("private_key_path")
     @classmethod
@@ -62,6 +66,19 @@ class SnowflakeConfig(BaseModel):
         if values.get("auth_type") == AuthType.PRIVATE_KEY and not v:
             raise ValueError(
                 "private_key_path is required when auth_type is PRIVATE_KEY"
+            )
+        return v
+
+    @field_validator("oauth_client_id")
+    @classmethod
+    def validate_oauth_client_id(
+        cls, v: Optional[str], info: ValidationInfo
+    ) -> Optional[str]:
+        """Validate that oauth_client_id is provided when auth_type is OAUTH."""
+        values = info.data
+        if values.get("auth_type") == AuthType.OAUTH and not v:
+            raise ValueError(
+                "oauth_client_id is required when auth_type is oauth"
             )
         return v
 
@@ -292,6 +309,23 @@ def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
         conn_params["private_key"] = private_key
     elif config.auth_type == AuthType.EXTERNAL_BROWSER:
         conn_params["authenticator"] = "externalbrowser"
+    elif config.auth_type == AuthType.OAUTH:
+        if not config.oauth_client_id or not config.oauth_client_secret:
+            raise ValueError(
+                "oauth_client_id and oauth_client_secret are required for OAuth authentication"
+            )
+        account_url = f"https://{config.account}.snowflakecomputing.com"
+        scope_parts = ["refresh_token"]
+        if config.role:
+            scope_parts.append(f"session:role:{config.role}")
+        conn_params["authenticator"] = "OAUTH_AUTHORIZATION_CODE"
+        conn_params["oauth_client_id"] = config.oauth_client_id
+        conn_params["oauth_client_secret"] = config.oauth_client_secret
+        conn_params["oauth_authorization_url"] = f"{account_url}/oauth/authorize"
+        conn_params["oauth_token_request_url"] = f"{account_url}/oauth/token-request"
+        conn_params["oauth_scope"] = " ".join(scope_parts)
+        conn_params["oauth_redirect_uri"] = "http://localhost"
+        conn_params["oauth_enable_refresh_token"] = True
 
     # Add optional connection parameters
     if config.warehouse:

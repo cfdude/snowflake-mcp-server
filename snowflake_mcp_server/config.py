@@ -28,6 +28,8 @@ class SnowflakeConnectionConfig(BaseSettings):
     database: Optional[str] = None
     schema_name: Optional[str] = None
     role: Optional[str] = None
+    oauth_client_id: Optional[str] = None
+    oauth_client_secret: Optional[str] = None
 
     @field_validator("auth_type", mode="before")
     @classmethod

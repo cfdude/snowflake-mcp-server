@@ -45,19 +45,22 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     """Initialize Snowflake connection pool on startup, close on shutdown."""
     config = get_config()
 
+    auth_type_map = {
+        "private_key": AuthType.PRIVATE_KEY,
+        "external_browser": AuthType.EXTERNAL_BROWSER,
+        "oauth": AuthType.OAUTH,
+    }
     snowflake_config = SnowflakeConfig(
         account=config.snowflake.account,
         user=config.snowflake.user,
-        auth_type=(
-            AuthType.PRIVATE_KEY
-            if config.snowflake.auth_type == "private_key"
-            else AuthType.EXTERNAL_BROWSER
-        ),
+        auth_type=auth_type_map.get(config.snowflake.auth_type, AuthType.PRIVATE_KEY),
         private_key_path=config.snowflake.private_key_path,
         warehouse=config.snowflake.warehouse,
         database=config.snowflake.database,
         schema_name=config.snowflake.schema_name,
         role=config.snowflake.role,
+        oauth_client_id=config.snowflake.oauth_client_id,
+        oauth_client_secret=config.snowflake.oauth_client_secret,
     )
 
     pool_config = ConnectionPoolConfig(
