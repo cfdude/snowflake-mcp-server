@@ -1,0 +1,141 @@
+{
+  "dxt_version": "0.1",
+  "name": "snowflake-mcp",
+  "display_name": "Snowflake MCP Server",
+  "version": "1.0.0",
+  "description": "Read-only access to Snowflake databases with OAuth browser login. Query views, list schemas, and execute SQL with intelligent large-result handling.",
+  "long_description": "A FastMCP server that provides secure, read-only access to Snowflake databases via OAuth browser authentication. Supports listing databases, views, describing schemas, querying data, and executing arbitrary read-only SQL. Large query results are automatically routed to CSV/JSON files when they exceed token limits.",
+  "author": {
+    "name": "Rob Sherman",
+    "email": "rob.sherman@highway.ai"
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "snowflake_mcp_server/run_stdio.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "snowflake-mcp-stdio"
+      ],
+      "env": {
+        "SNOWFLAKE_AUTH_TYPE": "oauth",
+        "SNOWFLAKE_ACCOUNT": "${user_config.snowflake_account}",
+        "SNOWFLAKE_USER": "${user_config.snowflake_user}",
+        "SNOWFLAKE_WAREHOUSE": "${user_config.snowflake_warehouse}",
+        "SNOWFLAKE_DATABASE": "${user_config.snowflake_database}",
+        "SNOWFLAKE_SCHEMA": "${user_config.snowflake_schema}",
+        "SNOWFLAKE_ROLE": "${user_config.snowflake_role}",
+        "SNOWFLAKE_OAUTH_CLIENT_ID": "AYsDTmhyOklxMLCcELoVp0XI0Xc=",
+        "SNOWFLAKE_OAUTH_CLIENT_SECRET": "K1EAVfAVutDbjN6bJAOV6gOKDoaxVSJcB9fjWWoTe+8=",
+        "SNOWFLAKE_POOL_MIN_SIZE": "2",
+        "SNOWFLAKE_POOL_MAX_SIZE": "5",
+        "SNOWFLAKE_POOL_MAX_INACTIVE_MINUTES": "30",
+        "SNOWFLAKE_POOL_HEALTH_CHECK_MINUTES": "5",
+        "SNOWFLAKE_POOL_CONNECTION_TIMEOUT": "30.0",
+        "SNOWFLAKE_POOL_RETRY_ATTEMPTS": "3",
+        "ALLOWED_SQL_COMMANDS": "[\"select\",\"show\",\"describe\",\"explain\",\"with\",\"union\",\"use\"]",
+        "READONLY_MODE": "true",
+        "MODEL_NAME": "claude-opus-4-6",
+        "MODEL_CONTEXT_TOKEN_LIMIT": "1000000",
+        "MODEL_SAFETY_MARGIN": "0.7",
+        "DEFAULT_OUTPUT": "auto",
+        "DEFAULT_FILE_FORMAT": "csv",
+        "DEFAULT_OUTPUT_DIR": "${user_config.output_directory}",
+        "SCREEN_OUTPUT_ROW_THRESHOLD": "1000",
+        "AUTO_GENERATE_FILENAME": "true",
+        "FILENAME_PATTERN": "query_{date}_{time}",
+        "TOKEN_ESTIMATION_SAMPLE_SIZE": "100",
+        "LOG_TOKEN_ESTIMATION": "false"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "list_databases",
+      "description": "List all accessible Snowflake databases"
+    },
+    {
+      "name": "list_views",
+      "description": "List views in a database and schema"
+    },
+    {
+      "name": "describe_view",
+      "description": "Get column details and SQL definition of a view"
+    },
+    {
+      "name": "query_view",
+      "description": "Query data from a view with row limit"
+    },
+    {
+      "name": "execute_query",
+      "description": "Execute read-only SQL with smart output handling (auto-routes large results to CSV/JSON files)"
+    }
+  ],
+  "user_config": {
+    "snowflake_account": {
+      "type": "string",
+      "title": "Snowflake Account",
+      "description": "Your Snowflake account identifier",
+      "required": true,
+      "default": "ou15116"
+    },
+    "snowflake_user": {
+      "type": "string",
+      "title": "Snowflake Username",
+      "description": "Your Snowflake username (used for OAuth login)",
+      "required": true
+    },
+    "snowflake_warehouse": {
+      "type": "string",
+      "title": "Warehouse",
+      "description": "Snowflake warehouse for running queries",
+      "required": true
+    },
+    "snowflake_database": {
+      "type": "string",
+      "title": "Default Database",
+      "description": "Default database context (can be overridden per query)",
+      "required": false
+    },
+    "snowflake_schema": {
+      "type": "string",
+      "title": "Default Schema",
+      "description": "Default schema context (can be overridden per query)",
+      "required": false,
+      "default": "PUBLIC"
+    },
+    "snowflake_role": {
+      "type": "string",
+      "title": "Snowflake Role",
+      "description": "Snowflake role to use (controls data access permissions)",
+      "required": false
+    },
+    "output_directory": {
+      "type": "directory",
+      "title": "Query Output Directory",
+      "description": "Directory where large query results are saved as CSV/JSON files",
+      "required": false,
+      "default": "./query_results"
+    }
+  },
+  "keywords": [
+    "snowflake",
+    "database",
+    "sql",
+    "mcp",
+    "data",
+    "analytics",
+    "oauth",
+    "read-only"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "linux"],
+    "runtimes": {
+      "python": ">=3.13"
+    }
+  }
+}
