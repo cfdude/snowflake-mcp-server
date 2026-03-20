@@ -70,11 +70,21 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
         connection_timeout=config.pool.connection_timeout,
     )
 
-    # Initialize the async connection pool
-    # For OAuth auth, the first connection will open a browser for consent.
-    # This happens in a thread via run_in_executor so it doesn't block the event loop.
-    await initialize_connection_pool(snowflake_config, pool_config)
-    logger.info("Snowflake connection pool initialized")
+    # For OAuth, defer connection creation to first tool call (browser flow is slow).
+    # For private_key/external_browser, connect eagerly at startup.
+    if snowflake_config.auth_type == AuthType.OAUTH:
+        pool_config_deferred = ConnectionPoolConfig(
+            min_size=0,  # Don't create connections at startup
+            max_size=pool_config.max_size,
+            max_inactive_time=pool_config.max_inactive_time,
+            health_check_interval=pool_config.health_check_interval,
+            connection_timeout=pool_config.connection_timeout,
+        )
+        await initialize_connection_pool(snowflake_config, pool_config_deferred)
+        logger.info("Snowflake connection pool initialized (OAuth — connections deferred to first use)")
+    else:
+        await initialize_connection_pool(snowflake_config, pool_config)
+        logger.info("Snowflake connection pool initialized")
 
     yield
 

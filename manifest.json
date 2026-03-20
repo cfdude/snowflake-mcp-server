@@ -23,11 +23,8 @@
       "env": {
         "SNOWFLAKE_AUTH_TYPE": "oauth",
         "SNOWFLAKE_ACCOUNT": "${user_config.snowflake_account}",
-        "SNOWFLAKE_USER": "${user_config.snowflake_user}",
         "SNOWFLAKE_WAREHOUSE": "${user_config.snowflake_warehouse}",
-        "SNOWFLAKE_DATABASE": "${user_config.snowflake_database}",
         "SNOWFLAKE_SCHEMA": "${user_config.snowflake_schema}",
-        "SNOWFLAKE_ROLE": "${user_config.snowflake_role}",
         "SNOWFLAKE_OAUTH_CLIENT_ID": "AYsDTmhyOklxMLCcELoVp0XI0Xc=",
         "SNOWFLAKE_OAUTH_CLIENT_SECRET": "K1EAVfAVutDbjN6bJAOV6gOKDoaxVSJcB9fjWWoTe+8=",
         "SNOWFLAKE_POOL_MIN_SIZE": "2",
@@ -82,23 +79,11 @@
       "required": true,
       "default": "ou15116"
     },
-    "snowflake_user": {
-      "type": "string",
-      "title": "Snowflake Username",
-      "description": "Your Snowflake username (used for OAuth login)",
-      "required": true
-    },
     "snowflake_warehouse": {
       "type": "string",
       "title": "Warehouse",
       "description": "Snowflake warehouse for running queries",
       "required": true
-    },
-    "snowflake_database": {
-      "type": "string",
-      "title": "Default Database",
-      "description": "Default database context (can be overridden per query)",
-      "required": false
     },
     "snowflake_schema": {
       "type": "string",
@@ -106,12 +91,6 @@
       "description": "Default schema context (can be overridden per query)",
       "required": false,
       "default": "PUBLIC"
-    },
-    "snowflake_role": {
-      "type": "string",
-      "title": "Snowflake Role",
-      "description": "Snowflake role to use (controls data access permissions)",
-      "required": false
     },
     "output_directory": {
       "type": "directory",

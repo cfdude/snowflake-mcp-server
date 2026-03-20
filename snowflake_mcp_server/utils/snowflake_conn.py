@@ -293,11 +293,14 @@ class SnowflakeConnectionManager:
 
 
 def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
-    """Create a connection to Snowflake using key pair or external browser auth."""
+    """Create a connection to Snowflake using key pair, browser, or OAuth auth."""
     conn_params: Dict[str, Any] = {
         "account": config.account,
-        "user": config.user,
     }
+
+    # For non-OAuth auth, user is required
+    if config.auth_type != AuthType.OAUTH:
+        conn_params["user"] = config.user
 
     # Set authentication parameters based on auth_type
     if config.auth_type == AuthType.PRIVATE_KEY:
@@ -324,7 +327,7 @@ def get_snowflake_connection(config: SnowflakeConfig) -> SnowflakeConnection:
         conn_params["oauth_authorization_url"] = f"{account_url}/oauth/authorize"
         conn_params["oauth_token_request_url"] = f"{account_url}/oauth/token-request"
         conn_params["oauth_scope"] = " ".join(scope_parts)
-        conn_params["oauth_redirect_uri"] = "http://localhost"
+        conn_params["oauth_redirect_uri"] = "http://localhost:49731"
         conn_params["oauth_enable_refresh_token"] = True
 
     # Add optional connection parameters
