@@ -166,3 +166,7 @@ pids/
 
 # Query output files
 query_results/
+
+# MCPB bundles (generated, built to Desktop)
+*.mcpb
+*.dxt

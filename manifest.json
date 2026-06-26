@@ -1,13 +1,14 @@
 {
-  "dxt_version": "0.1",
-  "name": "snowflake-mcp",
-  "display_name": "Snowflake MCP Server",
+  "manifest_version": "0.3",
+  "name": "snowflake",
+  "display_name": "Snowflake",
   "version": "1.0.0",
-  "description": "Read-only access to Snowflake databases with OAuth browser login. Query views, list schemas, and execute SQL with intelligent large-result handling.",
-  "long_description": "A FastMCP server that provides secure, read-only access to Snowflake databases via OAuth browser authentication. Supports listing databases, views, describing schemas, querying data, and executing arbitrary read-only SQL. Large query results are automatically routed to CSV/JSON files when they exceed token limits.",
+  "description": "Read-only access to Snowflake databases with OAuth browser login. Query views, list schemas, and run SQL with smart large-result handling.",
+  "long_description": "Secure, read-only access to Snowflake via OAuth browser authentication. List databases and views, describe schemas, query data, and run read-only SQL. Large query results are automatically routed to CSV/JSON files when they exceed model token limits.",
   "author": {
     "name": "Rob Sherman",
-    "email": "rob.sherman@highway.ai"
+    "email": "rob.sherman@highway.ai",
+    "url": "https://highway.ai"
   },
   "server": {
     "type": "python",
@@ -104,9 +105,8 @@
     "output_directory": {
       "type": "directory",
       "title": "Query Output Directory",
-      "description": "Directory where large query results are saved as CSV/JSON files",
-      "required": false,
-      "default": "./query_results"
+      "description": "Optional. Directory where large query results are saved as CSV/JSON files. Leave blank to use the default location.",
+      "required": false
     }
   },
   "keywords": [

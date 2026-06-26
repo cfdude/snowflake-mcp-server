@@ -26,3 +26,7 @@ MIGRATION_GUIDE.md
 README.md
 .mcp.json
 .python-version
+*.mcpb
+.mcpbignore
+.dxtignore
+snowflake-mcp.dxt
